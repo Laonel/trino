@@ -128,6 +128,14 @@ public class ClassLoaderSafeConnectorMetadata
     }
 
     @Override
+    public Optional<Type> coerceNewTableColumn(ConnectorSession session, Type type)
+    {
+        try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {
+            return delegate.coerceNewTableColumn(session, type);
+        }
+    }
+
+    @Override
     public Optional<ConnectorTableLayout> getInsertLayout(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         try (ThreadContextClassLoader ignored = new ThreadContextClassLoader(classLoader)) {

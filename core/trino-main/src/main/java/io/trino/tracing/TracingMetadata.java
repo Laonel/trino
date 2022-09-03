@@ -531,6 +531,15 @@ public class TracingMetadata
     }
 
     @Override
+    public Optional<Type> coerceNewTableColumn(Session session, CatalogHandle catalogHandle, Type type)
+    {
+        Span span = startSpan("coerceNewTableColumn", catalogHandle.getCatalogName());
+        try (var ignored = scopedSpan(span)) {
+            return delegate.coerceNewTableColumn(session, catalogHandle, type);
+        }
+    }
+
+    @Override
     public OutputTableHandle beginCreateTable(Session session, String catalogName, ConnectorTableMetadata tableMetadata, Optional<TableLayout> layout)
     {
         Span span = startSpan("beginCreateTable", catalogName, tableMetadata);

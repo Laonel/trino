@@ -481,7 +481,7 @@ public class HiveMetadata
     @Override
     public List<String> listSchemaNames(ConnectorSession session)
     {
-        return metastore.getAllDatabases().stream()
+        return getMetastore(session).getAllDatabases().stream()
                 .filter(schemaName -> !HiveUtil.isHiveSystemSchema(schemaName))
                 .collect(toImmutableList());
     }
@@ -493,9 +493,8 @@ public class HiveMetadata
         if (isHiveSystemSchema(tableName.getSchemaName())) {
             return null;
         }
-        Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
-        Table table = metastore
-                .getTable(tableName.getSchemaName(), tableName.getTableName(), identity)
+        Table table = getMetastore(session)
+                .getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElse(null);
 
         if (table == null) {
@@ -625,8 +624,7 @@ public class HiveMetadata
 
     private ConnectorTableMetadata doGetTableMetadata(ConnectorSession session, SchemaTableName tableName)
     {
-        Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName(), identity)
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         if (isIcebergTable(table) || isDeltaLakeTable(table)) {
@@ -811,7 +809,7 @@ public class HiveMetadata
         }
         ImmutableList.Builder<SchemaTableName> tableNames = ImmutableList.builder();
         for (String schemaName : listSchemas(session, optionalSchemaName)) {
-            for (String tableName : metastore.getAllTables(schemaName)) {
+            for (String tableName : getMetastore(session).getAllTables(schemaName)) {
                 tableNames.add(new SchemaTableName(schemaName, tableName));
             }
         }
@@ -835,8 +833,7 @@ public class HiveMetadata
     public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         SchemaTableName tableName = ((HiveTableHandle) tableHandle).getSchemaTableName();
-        Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName(), identity)
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
         return hiveColumnHandles(table, typeManager, getTimestampPrecision(session)).stream()
                 .collect(toImmutableMap(HiveColumnHandle::getName, identity()));
@@ -923,7 +920,7 @@ public class HiveMetadata
 
         Optional<Table> optionalTable;
         try {
-            optionalTable = metastore.getTable(tableName.getSchemaName(), tableName.getTableName());
+            optionalTable = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName());
         }
         catch (HiveViewNotSupportedException e) {
             // exists, would be returned by listTables from schema
@@ -965,7 +962,7 @@ public class HiveMetadata
                 .setParameters(ImmutableMap.of(PRESTO_QUERY_ID_NAME, session.getQueryId()))
                 .build();
 
-        metastore.createDatabase(session, database);
+        getMetastore(session).createDatabase(session, database);
     }
 
     @Override
@@ -992,25 +989,25 @@ public class HiveMetadata
             }
 
             // Commit and then drop database with raw metastore because exclusive operation after dropping object is disallowed in SemiTransactionalHiveMetastore
-            metastore.commit();
-            boolean deleteData = metastore.shouldDeleteDatabaseData(session, schemaName);
-            metastore.unsafeGetRawHiveMetastoreClosure().dropDatabase(schemaName, deleteData);
+            getMetastore(session).commit();
+            boolean deleteData = getMetastore(session).shouldDeleteDatabaseData(session, schemaName);
+            getMetastore(session).unsafeGetRawHiveMetastoreClosure().dropDatabase(schemaName, deleteData);
         }
         else {
-            metastore.dropDatabase(session, schemaName);
+            getMetastore(session).dropDatabase(session, schemaName);
         }
     }
 
     @Override
     public void renameSchema(ConnectorSession session, String source, String target)
     {
-        metastore.renameDatabase(source, target);
+        getMetastore(session).renameDatabase(source, target);
     }
 
     @Override
     public void setSchemaAuthorization(ConnectorSession session, String schemaName, TrinoPrincipal principal)
     {
-        metastore.setDatabaseOwner(schemaName, HivePrincipal.from(principal));
+        getMetastore(session).setDatabaseOwner(schemaName, HivePrincipal.from(principal));
     }
 
     @Override
@@ -1032,7 +1029,7 @@ public class HiveMetadata
         }
 
         if (isTransactional) {
-            metastore.checkSupportsHiveAcidTransactions();
+            getMetastore(session).checkSupportsHiveAcidTransactions();
         }
 
         validateTimestampColumns(tableMetadata.getColumns(), getTimestampPrecision(session));
@@ -1086,7 +1083,7 @@ public class HiveMetadata
                 accessControlMetadata.isUsingSystemSecurity());
         PrincipalPrivileges principalPrivileges = accessControlMetadata.isUsingSystemSecurity() ? NO_PRIVILEGES : buildInitialPrivilegeSet(session.getUser());
         HiveBasicStatistics basicStatistics = (!external && table.getPartitionColumns().isEmpty()) ? createZeroStatistics() : createEmptyStatistics();
-        metastore.createTable(
+        getMetastore(session).createTable(
                 session,
                 table,
                 principalPrivileges,
@@ -1102,7 +1099,7 @@ public class HiveMetadata
         HiveStorageFormat hiveStorageFormat = getHiveStorageFormat(tableMetadata.getProperties());
         ImmutableMap.Builder<String, String> tableProperties = ImmutableMap.builder();
 
-        // When metastore is configured with metastore.create.as.acid=true, it will also change Trino-created tables
+        // When metastore is configured with getMetastore(session).create.as.acid=true, it will also change Trino-created tables
         // behind the scenes. In particular, this won't work with CTAS.
         boolean transactional = HiveTableProperties.isTransactional(tableMetadata.getProperties()).orElse(false);
         tableProperties.put(TRANSACTIONAL, String.valueOf(transactional));
@@ -1438,7 +1435,7 @@ public class HiveMetadata
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
         failIfAvroSchemaIsSet(handle);
 
-        metastore.addColumn(handle.getSchemaName(), handle.getTableName(), column.getName(), toHiveType(column.getType()), column.getComment());
+        getMetastore(session).addColumn(handle.getSchemaName(), handle.getTableName(), column.getName(), toHiveType(column.getType()), column.getComment());
     }
 
     @Override
@@ -1448,7 +1445,7 @@ public class HiveMetadata
         failIfAvroSchemaIsSet(hiveTableHandle);
         HiveColumnHandle sourceHandle = (HiveColumnHandle) source;
 
-        metastore.renameColumn(hiveTableHandle.getSchemaName(), hiveTableHandle.getTableName(), sourceHandle.getName(), target);
+        getMetastore(session).renameColumn(hiveTableHandle.getSchemaName(), hiveTableHandle.getTableName(), sourceHandle.getName(), target);
     }
 
     @Override
@@ -1458,13 +1455,13 @@ public class HiveMetadata
         failIfAvroSchemaIsSet(hiveTableHandle);
         HiveColumnHandle columnHandle = (HiveColumnHandle) column;
 
-        metastore.dropColumn(hiveTableHandle.getSchemaName(), hiveTableHandle.getTableName(), columnHandle.getName());
+        getMetastore(session).dropColumn(hiveTableHandle.getSchemaName(), hiveTableHandle.getTableName(), columnHandle.getName());
     }
 
     @Override
     public void setTableAuthorization(ConnectorSession session, SchemaTableName table, TrinoPrincipal principal)
     {
-        metastore.setTableOwner(table.getSchemaName(), table.getTableName(), HivePrincipal.from(principal));
+        getMetastore(session).setTableOwner(table.getSchemaName(), table.getTableName(), HivePrincipal.from(principal));
     }
 
     private void failIfAvroSchemaIsSet(HiveTableHandle handle)
@@ -1486,14 +1483,14 @@ public class HiveMetadata
             throw new TrinoException(NOT_SUPPORTED, "Table rename is not supported with current metastore configuration");
         }
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
-        metastore.renameTable(handle.getSchemaName(), handle.getTableName(), newTableName.getSchemaName(), newTableName.getTableName());
+        getMetastore(session).renameTable(handle.getSchemaName(), handle.getTableName(), newTableName.getSchemaName(), newTableName.getTableName());
     }
 
     @Override
     public void setTableComment(ConnectorSession session, ConnectorTableHandle tableHandle, Optional<String> comment)
     {
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
-        metastore.commentTable(handle.getSchemaName(), handle.getTableName(), comment);
+        getMetastore(session).commentTable(handle.getSchemaName(), handle.getTableName(), comment);
     }
 
     @Override
@@ -1560,7 +1557,7 @@ public class HiveMetadata
 
         PrincipalPrivileges principalPrivileges = accessControlMetadata.isUsingSystemSecurity() ? NO_PRIVILEGES : buildInitialPrivilegeSet(session.getUser());
 
-        metastore.replaceTable(viewName.getSchemaName(), viewName.getTableName(), viewBuilder.build(), principalPrivileges);
+        getMetastore(session).replaceTable(viewName.getSchemaName(), viewName.getTableName(), viewBuilder.build(), principalPrivileges);
     }
 
     @Override
@@ -1568,24 +1565,24 @@ public class HiveMetadata
     {
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
         HiveColumnHandle columnHandle = (HiveColumnHandle) column;
-        metastore.commentColumn(handle.getSchemaName(), handle.getTableName(), columnHandle.getName(), comment);
+        getMetastore(session).commentColumn(handle.getSchemaName(), handle.getTableName(), columnHandle.getName(), comment);
     }
 
     @Override
     public void dropTable(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
-        if (metastore.getTable(handle.getSchemaName(), handle.getTableName()).isEmpty()) {
+        if (getMetastore(session).getTable(handle.getSchemaName(), handle.getTableName()).isEmpty()) {
             throw new TableNotFoundException(handle.getSchemaTableName());
         }
-        metastore.dropTable(session, handle.getSchemaName(), handle.getTableName());
+        getMetastore(session).dropTable(session, handle.getSchemaName(), handle.getTableName());
     }
 
     @Override
     public ConnectorTableHandle beginStatisticsCollection(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
-        if (metastore.getTable(handle.getSchemaName(), handle.getTableName()).isEmpty()) {
+        if (getMetastore(session).getTable(handle.getSchemaName(), handle.getTableName()).isEmpty()) {
             throw new TableNotFoundException(handle.getSchemaTableName());
         }
         return tableHandle;
@@ -1596,7 +1593,7 @@ public class HiveMetadata
     {
         HiveTableHandle handle = (HiveTableHandle) tableHandle;
         SchemaTableName tableName = handle.getSchemaTableName();
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         List<Column> partitionColumns = table.getPartitionColumns();
@@ -1613,7 +1610,7 @@ public class HiveMetadata
 
         if (partitionColumns.isEmpty()) {
             // commit analyze to unpartitioned table
-            metastore.setTableStatistics(table, createPartitionStatistics(columnTypes, computedStatisticsMap.get(ImmutableList.<String>of())));
+            getMetastore(session).setTableStatistics(table, createPartitionStatistics(columnTypes, computedStatisticsMap.get(ImmutableList.<String>of())));
         }
         else {
             List<String> partitionNames;
@@ -1626,7 +1623,7 @@ public class HiveMetadata
                         .collect(toImmutableList());
             }
             else {
-                partitionNames = metastore.getPartitionNames(handle.getSchemaName(), handle.getTableName())
+                partitionNames = getMetastore(session).getPartitionNames(handle.getSchemaName(), handle.getTableName())
                         .orElseThrow(() -> new TableNotFoundException(tableName));
                 partitionValuesList = partitionNames
                         .stream()
@@ -1638,7 +1635,7 @@ public class HiveMetadata
             Map<String, Set<HiveColumnStatisticType>> columnStatisticTypes = hiveColumnHandles.stream()
                     .filter(columnHandle -> !partitionColumnNames.contains(columnHandle.getName()))
                     .filter(column -> !column.isHidden())
-                    .collect(toImmutableMap(HiveColumnHandle::getName, column -> ImmutableSet.copyOf(metastore.getSupportedColumnStatistics(column.getType()))));
+                    .collect(toImmutableMap(HiveColumnHandle::getName, column -> ImmutableSet.copyOf(getMetastore(session).getSupportedColumnStatistics(column.getType()))));
             Supplier<PartitionStatistics> emptyPartitionStatistics = Suppliers.memoize(() -> createEmptyPartitionStatistics(columnTypes, columnStatisticTypes));
 
             List<Type> partitionTypes = handle.getPartitionColumns().stream()
@@ -1658,7 +1655,7 @@ public class HiveMetadata
                     partitionStatistics.put(partitionValues, createPartitionStatistics(columnTypes, collectedStatistics));
                 }
             }
-            metastore.setPartitionStatistics(table, partitionStatistics.buildOrThrow());
+            getMetastore(session).setPartitionStatistics(table, partitionStatistics.buildOrThrow());
         }
     }
 
@@ -1690,7 +1687,7 @@ public class HiveMetadata
 
         boolean isTransactional = isTransactional(tableMetadata.getProperties()).orElse(false);
         if (isTransactional) {
-            metastore.checkSupportsHiveAcidTransactions();
+            getMetastore(session).checkSupportsHiveAcidTransactions();
         }
 
         if (isTransactional && externalLocation.isEmpty() && isDelegateTransactionalManagedTableLocationToMetastore(session)) {
@@ -1752,7 +1749,7 @@ public class HiveMetadata
                 schemaName,
                 tableName,
                 columnHandles,
-                metastore.generatePageSinkMetadata(schemaTableName),
+                getMetastore(session).generatePageSinkMetadata(schemaTableName),
                 locationHandle,
                 tableStorageFormat,
                 partitionStorageFormat,
@@ -1765,7 +1762,7 @@ public class HiveMetadata
                 retryMode != NO_RETRIES);
 
         WriteInfo writeInfo = locationService.getQueryWriteInfo(locationHandle);
-        metastore.declareIntentionToWrite(session, writeInfo.writeMode(), writeInfo.writePath(), schemaTableName);
+        getMetastore(session).declareIntentionToWrite(session, writeInfo.writeMode(), writeInfo.writePath(), schemaTableName);
 
         return result;
     }
@@ -1811,7 +1808,7 @@ public class HiveMetadata
             if (handle.isTransactional()) {
                 AcidTransaction transaction = handle.getTransaction();
                 List<String> partitionNames = partitionUpdates.stream().map(PartitionUpdate::getName).collect(toImmutableList());
-                metastore.addDynamicPartitions(
+                getMetastore(session).addDynamicPartitions(
                         handle.getSchemaName(),
                         handle.getTableName(),
                         partitionNames,
@@ -1847,10 +1844,10 @@ public class HiveMetadata
             else {
                 fileNames = getOnlyElement(partitionUpdates).getFileNames();
             }
-            metastore.createTable(session, table, principalPrivileges, writePath, Optional.of(fileNames), false, tableStatistics, handle.isRetriesEnabled());
+            getMetastore(session).createTable(session, table, principalPrivileges, writePath, Optional.of(fileNames), false, tableStatistics, handle.isRetriesEnabled());
         }
         else {
-            metastore.createTable(session, table, principalPrivileges, writePath, Optional.empty(), false, tableStatistics, false);
+            getMetastore(session).createTable(session, table, principalPrivileges, writePath, Optional.empty(), false, tableStatistics, false);
         }
 
         if (!handle.getPartitionedBy().isEmpty()) {
@@ -1864,7 +1861,7 @@ public class HiveMetadata
                         update.getStatistics(),
                         columnTypes,
                         getColumnStatistics(partitionComputedStatistics, canonicalPartitionValues));
-                metastore.addPartition(
+                getMetastore(session).addPartition(
                         session,
                         handle.getSchemaName(),
                         handle.getTableName(),
@@ -1992,7 +1989,7 @@ public class HiveMetadata
     {
         HiveTableHandle hiveTableHandle = (HiveTableHandle) tableHandle;
         SchemaTableName tableName = hiveTableHandle.getSchemaTableName();
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         if (!isFullAcidTable(table.getParameters())) {
@@ -2035,7 +2032,7 @@ public class HiveMetadata
 
         LocationHandle locationHandle = locationService.forExistingTable(metastore, session, table);
         WriteInfo writeInfo = locationService.getQueryWriteInfo(locationHandle);
-        metastore.finishMerge(session, table.getDatabaseName(), table.getTableName(), writeInfo.writePath(), partitionMergeResults, partitions);
+        getMetastore(session).finishMerge(session, table.getDatabaseName(), table.getTableName(), writeInfo.writePath(), partitionMergeResults, partitions);
     }
 
     @Override
@@ -2047,7 +2044,7 @@ public class HiveMetadata
     private HiveInsertTableHandle beginInsertOrMerge(ConnectorSession session, ConnectorTableHandle tableHandle, RetryMode retryMode, String description, boolean isForMerge)
     {
         SchemaTableName tableName = ((HiveTableHandle) tableHandle).getSchemaTableName();
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         checkTableIsWritable(table, writesToNonManagedTablesEnabled);
@@ -2087,16 +2084,16 @@ public class HiveMetadata
         AcidTransaction transaction = NO_ACID_TRANSACTION;
         if (isForMerge) {
             checkArgument(isTransactional, "The target table in Hive MERGE must be a transactional table");
-            transaction = metastore.beginMerge(session, table);
+            transaction = getMetastore(session).beginMerge(session, table);
         }
         else if (isTransactional) {
-            transaction = metastore.beginInsert(session, table);
+            transaction = getMetastore(session).beginInsert(session, table);
         }
         HiveInsertTableHandle result = new HiveInsertTableHandle(
                 tableName.getSchemaName(),
                 tableName.getTableName(),
                 handles,
-                metastore.generatePageSinkMetadata(tableName),
+                getMetastore(session).generatePageSinkMetadata(tableName),
                 locationHandle,
                 table.getStorage().getBucketProperty(),
                 tableStorageFormat,
@@ -2116,7 +2113,7 @@ public class HiveMetadata
                 throw new TrinoException(NOT_SUPPORTED, "Overwriting existing partition in non auto commit context doesn't support DIRECT_TO_TARGET_EXISTING_DIRECTORY write mode");
             }
         }
-        metastore.declareIntentionToWrite(session, writeInfo.writeMode(), writeInfo.writePath(), tableName);
+        getMetastore(session).declareIntentionToWrite(session, writeInfo.writeMode(), writeInfo.writePath(), tableName);
         return result;
     }
 
@@ -2151,7 +2148,7 @@ public class HiveMetadata
         HiveStorageFormat tableStorageFormat = handle.getTableStorageFormat();
         partitionUpdates = PartitionUpdate.mergePartitionUpdates(partitionUpdates);
 
-        Table table = metastore.getTable(handle.getSchemaName(), handle.getTableName())
+        Table table = getMetastore(session).getTable(handle.getSchemaName(), handle.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(handle.getSchemaTableName()));
         if (!table.getStorage().getStorageFormat().getInputFormat().equals(tableStorageFormat.getInputFormat()) && isRespectTableFormat(session)) {
             throw new TrinoException(HIVE_CONCURRENT_MODIFICATION_DETECTED, "Table format changed during " + changeDescription);
@@ -2165,7 +2162,7 @@ public class HiveMetadata
                 Optional<Partition> partition = table.getPartitionColumns().isEmpty() ? Optional.empty() : Optional.of(buildPartitionObject(session, table, partitionUpdate));
                 if (handle.isTransactional() && partition.isPresent()) {
                     PartitionStatistics statistics = PartitionStatistics.builder().setBasicStatistics(partitionUpdate.getStatistics()).build();
-                    metastore.addPartition(
+                    getMetastore(session).addPartition(
                             session,
                             handle.getSchemaName(),
                             handle.getTableName(),
@@ -2202,13 +2199,13 @@ public class HiveMetadata
 
                 if (partitionUpdate.getUpdateMode() == OVERWRITE) {
                     // get privileges from existing table
-                    PrincipalPrivileges principalPrivileges = fromHivePrivilegeInfos(metastore.listTablePrivileges(handle.getSchemaName(), handle.getTableName(), Optional.empty()));
+                    PrincipalPrivileges principalPrivileges = fromHivePrivilegeInfos(getMetastore(session).listTablePrivileges(handle.getSchemaName(), handle.getTableName(), Optional.empty()));
 
                     // first drop it
-                    metastore.dropTable(session, handle.getSchemaName(), handle.getTableName());
+                    getMetastore(session).dropTable(session, handle.getSchemaName(), handle.getTableName());
 
                     // create the table with the new location
-                    metastore.createTable(
+                    getMetastore(session).createTable(
                             session,
                             table,
                             principalPrivileges,
@@ -2220,7 +2217,7 @@ public class HiveMetadata
                 }
                 else if (partitionUpdate.getUpdateMode() == NEW || partitionUpdate.getUpdateMode() == APPEND) {
                     // insert into unpartitioned table
-                    metastore.finishChangingExistingTable(
+                    getMetastore(session).finishChangingExistingTable(
                             acidOperation,
                             session,
                             handle.getSchemaName(),
@@ -2277,12 +2274,12 @@ public class HiveMetadata
                         }
                     }
                     else {
-                        metastore.dropPartition(session, handle.getSchemaName(), handle.getTableName(), partition.getValues(), true);
-                        metastore.addPartition(session, handle.getSchemaName(), handle.getTableName(), partition, partitionUpdate.getWritePath(), Optional.of(partitionUpdate.getFileNames()), partitionStatistics, handle.isRetriesEnabled());
+                        getMetastore(session).dropPartition(session, handle.getSchemaName(), handle.getTableName(), partition.getValues(), true);
+                        getMetastore(session).addPartition(session, handle.getSchemaName(), handle.getTableName(), partition, partitionUpdate.getWritePath(), Optional.of(partitionUpdate.getFileNames()), partitionStatistics, handle.isRetriesEnabled());
                     }
                 }
                 else {
-                    metastore.addPartition(session, handle.getSchemaName(), handle.getTableName(), partition, partitionUpdate.getWritePath(), Optional.of(partitionUpdate.getFileNames()), partitionStatistics, handle.isRetriesEnabled());
+                    getMetastore(session).addPartition(session, handle.getSchemaName(), handle.getTableName(), partition, partitionUpdate.getWritePath(), Optional.of(partitionUpdate.getFileNames()), partitionStatistics, handle.isRetriesEnabled());
                 }
             }
             else {
@@ -2292,7 +2289,7 @@ public class HiveMetadata
 
         List<PartitionUpdateInfo> partitionUpdateInfos = partitionUpdateInfosBuilder.build();
         if (!partitionUpdateInfos.isEmpty()) {
-            metastore.finishInsertIntoExistingPartitions(
+            getMetastore(session).finishInsertIntoExistingPartitions(
                     session,
                     handle.getSchemaName(),
                     handle.getTableName(),
@@ -2423,7 +2420,7 @@ public class HiveMetadata
         HiveTableHandle hiveTableHandle = (HiveTableHandle) tableHandle;
         SchemaTableName tableName = hiveTableHandle.getSchemaTableName();
 
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         checkTableIsWritable(table, writesToNonManagedTablesEnabled);
@@ -2470,7 +2467,7 @@ public class HiveMetadata
                 tableName.getSchemaName(),
                 tableName.getTableName(),
                 columns,
-                metastore.generatePageSinkMetadata(tableName),
+                getMetastore(session).generatePageSinkMetadata(tableName),
                 locationHandle,
                 table.getStorage().getBucketProperty(),
                 tableStorageFormat,
@@ -2497,7 +2494,7 @@ public class HiveMetadata
         HiveTableHandle hiveSourceTableHandle = (HiveTableHandle) sourceTableHandle;
 
         WriteInfo writeInfo = locationService.getQueryWriteInfo(hiveExecuteHandle.getLocationHandle());
-        String writeDeclarationId = metastore.declareIntentionToWrite(session, writeInfo.writeMode(), writeInfo.writePath(), hiveExecuteHandle.getSchemaTableName());
+        String writeDeclarationId = getMetastore(session).declareIntentionToWrite(session, writeInfo.writeMode(), writeInfo.writePath(), hiveExecuteHandle.getSchemaTableName());
 
         return new BeginTableExecuteResult<>(
                 hiveExecuteHandle
@@ -2534,7 +2531,7 @@ public class HiveMetadata
         HiveStorageFormat tableStorageFormat = handle.getTableStorageFormat();
         partitionUpdates = PartitionUpdate.mergePartitionUpdates(partitionUpdates);
 
-        Table table = metastore.getTable(handle.getSchemaName(), handle.getTableName())
+        Table table = getMetastore(session).getTable(handle.getSchemaName(), handle.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(handle.getSchemaTableName()));
         if (!table.getStorage().getStorageFormat().getInputFormat().equals(tableStorageFormat.getInputFormat()) && isRespectTableFormat(session)) {
             throw new TrinoException(HIVE_CONCURRENT_MODIFICATION_DETECTED, "Table format changed during optimize");
@@ -2557,7 +2554,7 @@ public class HiveMetadata
                 if (operation == AcidOperation.NONE) {
                     operation = AcidOperation.INSERT;
                 }
-                metastore.finishChangingExistingTable(
+                getMetastore(session).finishChangingExistingTable(
                         operation,
                         session,
                         handle.getSchemaName(),
@@ -2581,7 +2578,7 @@ public class HiveMetadata
 
         List<PartitionUpdateInfo> partitionUpdateInfos = partitionUpdateInfosBuilder.build();
         if (!partitionUpdateInfos.isEmpty()) {
-            metastore.finishInsertIntoExistingPartitions(
+            getMetastore(session).finishInsertIntoExistingPartitions(
                     session,
                     handle.getSchemaName(),
                     handle.getTableName(),
@@ -2629,7 +2626,7 @@ public class HiveMetadata
             // If we already deleted some original files we disable rollback routine so written files are not deleted.
             // The reported exception message and log entry lists files which need to be cleaned up by user manually.
             // Until table is cleaned up there will duplicate rows present.
-            metastore.dropDeclaredIntentionToWrite(handle.getWriteDeclarationId().get());
+            getMetastore(session).dropDeclaredIntentionToWrite(handle.getWriteDeclarationId().get());
             String errorMessage = "Error while deleting data files in FINISH phase of OPTIMIZE for table " + table.getTableName() + "; remaining files need to be deleted manually:  " + remainingFilesToDelete;
             log.error(e, "%s", errorMessage);
             throw new TrinoException(HIVE_FILESYSTEM_ERROR, errorMessage, e);
@@ -2681,18 +2678,18 @@ public class HiveMetadata
         Table table = tableBuilder.build();
         PrincipalPrivileges principalPrivileges = accessControlMetadata.isUsingSystemSecurity() ? NO_PRIVILEGES : buildInitialPrivilegeSet(session.getUser());
 
-        Optional<Table> existing = metastore.getTable(viewName.getSchemaName(), viewName.getTableName());
+        Optional<Table> existing = getMetastore(session).getTable(viewName.getSchemaName(), viewName.getTableName());
         if (existing.isPresent()) {
             if (!replace || !isTrinoView(existing.get())) {
                 throw new ViewAlreadyExistsException(viewName);
             }
 
-            metastore.replaceTable(viewName.getSchemaName(), viewName.getTableName(), table, principalPrivileges);
+            getMetastore(session).replaceTable(viewName.getSchemaName(), viewName.getTableName(), table, principalPrivileges);
             return;
         }
 
         try {
-            metastore.createTable(session, table, principalPrivileges, Optional.empty(), Optional.empty(), false, new PartitionStatistics(createEmptyStatistics(), ImmutableMap.of()), false);
+            getMetastore(session).createTable(session, table, principalPrivileges, Optional.empty(), Optional.empty(), false, new PartitionStatistics(createEmptyStatistics(), ImmutableMap.of()), false);
         }
         catch (TableAlreadyExistsException e) {
             throw new ViewAlreadyExistsException(e.getTableName());
@@ -2703,7 +2700,7 @@ public class HiveMetadata
     public void renameView(ConnectorSession session, SchemaTableName source, SchemaTableName target)
     {
         // Not checking if source view exists as this is already done in RenameViewTask
-        metastore.renameTable(source.getSchemaName(), source.getTableName(), target.getSchemaName(), target.getTableName());
+        getMetastore(session).renameTable(source.getSchemaName(), source.getTableName(), target.getSchemaName(), target.getTableName());
     }
 
     @Override
@@ -2721,7 +2718,7 @@ public class HiveMetadata
         }
 
         try {
-            metastore.dropTable(session, viewName.getSchemaName(), viewName.getTableName());
+            getMetastore(session).dropTable(session, viewName.getSchemaName(), viewName.getTableName());
         }
         catch (TableNotFoundException e) {
             throw new ViewNotFoundException(e.getTableName());
@@ -2743,7 +2740,7 @@ public class HiveMetadata
         }
         ImmutableList.Builder<SchemaTableName> tableNames = ImmutableList.builder();
         for (String schemaName : listSchemas(session, optionalSchemaName)) {
-            for (String tableName : metastore.getAllViews(schemaName)) {
+            for (String tableName : getMetastore(session).getAllViews(schemaName)) {
                 SchemaTableName schemaTableName = new SchemaTableName(schemaName, tableName);
                 if (!materializedViews.contains(schemaTableName)) {
                     tableNames.add(schemaTableName);
@@ -2759,7 +2756,7 @@ public class HiveMetadata
         if (isHiveSystemSchema(schemaName)) {
             throw new TrinoException(NOT_SUPPORTED, "Schema properties are not supported for system schema: " + schemaName);
         }
-        return metastore.getDatabase(schemaName)
+        return getMetastore(session).getDatabase(schemaName)
                 .map(HiveSchemaProperties::fromDatabase)
                 .orElseThrow(() -> new SchemaNotFoundException(schemaName));
     }
@@ -2806,7 +2803,7 @@ public class HiveMetadata
             return Optional.empty();
         }
         Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
-        return toConnectorViewDefinition(session, viewName, metastore.getTable(viewName.getSchemaName(), viewName.getTableName(), identity));
+        return toConnectorViewDefinition(session, viewName, getMetastore(session).getTable(viewName.getSchemaName(), viewName.getTableName(), identity));
     }
 
     private Optional<ConnectorViewDefinition> toConnectorViewDefinition(ConnectorSession session, SchemaTableName viewName, Optional<Table> table)
@@ -2878,11 +2875,11 @@ public class HiveMetadata
     {
         HiveTableHandle handle = (HiveTableHandle) deleteHandle;
 
-        Table table = metastore.getTable(handle.getSchemaName(), handle.getTableName())
+        Table table = getMetastore(session).getTable(handle.getSchemaName(), handle.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(handle.getSchemaTableName()));
 
         if (table.getPartitionColumns().isEmpty()) {
-            metastore.truncateUnpartitionedTable(session, handle.getSchemaName(), handle.getTableName());
+            getMetastore(session).truncateUnpartitionedTable(session, handle.getSchemaName(), handle.getTableName());
         }
         else {
             Iterator<HivePartition> partitions = partitionManager.getPartitions(metastore, handle);
@@ -2898,7 +2895,7 @@ public class HiveMetadata
                 }
             }
             for (String partitionId : partitionIds) {
-                metastore.dropPartition(session, handle.getSchemaName(), handle.getTableName(), toPartitionValues(partitionId), true);
+                getMetastore(session).dropPartition(session, handle.getSchemaName(), handle.getTableName(), toPartitionValues(partitionId), true);
             }
         }
         // it is too expensive to determine the exact number of deleted rows
@@ -3320,7 +3317,7 @@ public class HiveMetadata
     {
         HiveTableHandle hiveTableHandle = (HiveTableHandle) tableHandle;
         SchemaTableName tableName = hiveTableHandle.getSchemaTableName();
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         if (table.getStorage().getBucketProperty().isPresent()) {
@@ -3440,7 +3437,7 @@ public class HiveMetadata
     {
         HiveTableExecuteHandle hiveExecuteHandle = (HiveTableExecuteHandle) executeHandle;
         SchemaTableName tableName = hiveExecuteHandle.getSchemaTableName();
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Table table = getMetastore(session).getTable(tableName.getSchemaName(), tableName.getTableName())
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         if (table.getStorage().getBucketProperty().isPresent()) {
@@ -3780,13 +3777,13 @@ public class HiveMetadata
     @Override
     public void beginQuery(ConnectorSession session)
     {
-        metastore.beginQuery(session);
+        getMetastore(session).beginQuery(session);
     }
 
     @Override
     public void cleanupQuery(ConnectorSession session)
     {
-        metastore.cleanupQuery(session);
+        getMetastore(session).cleanupQuery(session);
     }
 
     @Override
@@ -3978,5 +3975,11 @@ public class HiveMetadata
         // If query_partition_filter_required_schemas is empty then we would apply partition filter for all tables.
         return isQueryPartitionFilterRequired(session) &&
                 requiredSchemas.isEmpty() || requiredSchemas.contains(schemaTableName.getSchemaName());
+    }
+
+    @SuppressWarnings("UnusedVariable")
+    protected SemiTransactionalHiveMetastore getMetastore(ConnectorSession session)
+    {
+        return metastore;
     }
 }

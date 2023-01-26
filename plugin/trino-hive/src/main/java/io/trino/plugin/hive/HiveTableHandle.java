@@ -58,6 +58,7 @@ public class HiveTableHandle
     private final AcidTransaction transaction;
     private final boolean recordScannedFiles;
     private final Optional<Long> maxScannedFileSize;
+    private final Optional<String> authorization;
 
     @JsonCreator
     public HiveTableHandle(
@@ -70,7 +71,8 @@ public class HiveTableHandle
             @JsonProperty("bucketHandle") Optional<HiveBucketHandle> bucketHandle,
             @JsonProperty("bucketFilter") Optional<HiveBucketFilter> bucketFilter,
             @JsonProperty("analyzePartitionValues") Optional<List<List<String>>> analyzePartitionValues,
-            @JsonProperty("transaction") AcidTransaction transaction)
+            @JsonProperty("transaction") AcidTransaction transaction,
+            @JsonProperty("authorization") Optional<String> authorization)
     {
         this(
                 schemaName,
@@ -88,7 +90,8 @@ public class HiveTableHandle
                 ImmutableSet.of(),
                 transaction,
                 false,
-                Optional.empty());
+                Optional.empty(),
+                authorization);
     }
 
     public HiveTableHandle(
@@ -115,6 +118,7 @@ public class HiveTableHandle
                 ImmutableSet.of(),
                 NO_ACID_TRANSACTION,
                 false,
+                Optional.empty(),
                 Optional.empty());
     }
 
@@ -134,7 +138,8 @@ public class HiveTableHandle
             Set<ColumnHandle> constraintColumns,
             AcidTransaction transaction,
             boolean recordScannedFiles,
-            Optional<Long> maxSplitFileSize)
+            Optional<Long> maxSplitFileSize,
+            Optional<String> authorization)
     {
         this(
                 schemaName,
@@ -153,7 +158,8 @@ public class HiveTableHandle
                 ImmutableSet.<ColumnHandle>builder().addAll(partitionColumns).addAll(dataColumns).build(),
                 transaction,
                 recordScannedFiles,
-                maxSplitFileSize);
+                maxSplitFileSize,
+                authorization);
     }
 
     public HiveTableHandle(
@@ -173,7 +179,8 @@ public class HiveTableHandle
             Set<ColumnHandle> projectedColumns,
             AcidTransaction transaction,
             boolean recordScannedFiles,
-            Optional<Long> maxSplitFileSize)
+            Optional<Long> maxSplitFileSize,
+            Optional<String> authorization)
     {
         checkState(partitionNames.isEmpty() || partitions.isEmpty(), "partition names and partitions list cannot be present at same time");
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
@@ -193,6 +200,7 @@ public class HiveTableHandle
         this.transaction = requireNonNull(transaction, "transaction is null");
         this.recordScannedFiles = recordScannedFiles;
         this.maxScannedFileSize = requireNonNull(maxSplitFileSize, "maxSplitFileSize is null");
+        this.authorization = requireNonNull(authorization, "authorization is null");
     }
 
     public HiveTableHandle withAnalyzePartitionValues(List<List<String>> analyzePartitionValues)
@@ -214,7 +222,8 @@ public class HiveTableHandle
                 projectedColumns,
                 transaction,
                 recordScannedFiles,
-                maxScannedFileSize);
+                maxScannedFileSize,
+                authorization);
     }
 
     public HiveTableHandle withTransaction(AcidTransaction transaction)
@@ -236,7 +245,8 @@ public class HiveTableHandle
                 projectedColumns,
                 transaction,
                 recordScannedFiles,
-                maxScannedFileSize);
+                maxScannedFileSize,
+                authorization);
     }
 
     public HiveTableHandle withProjectedColumns(Set<ColumnHandle> projectedColumns)
@@ -258,7 +268,8 @@ public class HiveTableHandle
                 projectedColumns,
                 transaction,
                 recordScannedFiles,
-                maxScannedFileSize);
+                maxScannedFileSize,
+                authorization);
     }
 
     public HiveTableHandle withRecordScannedFiles(boolean recordScannedFiles)
@@ -280,7 +291,8 @@ public class HiveTableHandle
                 projectedColumns,
                 transaction,
                 recordScannedFiles,
-                maxScannedFileSize);
+                maxScannedFileSize,
+                authorization);
     }
 
     public HiveTableHandle withMaxScannedFileSize(Optional<Long> maxScannedFileSize)
@@ -302,7 +314,8 @@ public class HiveTableHandle
                 projectedColumns,
                 transaction,
                 recordScannedFiles,
-                maxScannedFileSize);
+                maxScannedFileSize,
+                authorization);
     }
 
     @JsonProperty
@@ -443,6 +456,12 @@ public class HiveTableHandle
     public Optional<Long> getMaxScannedFileSize()
     {
         return maxScannedFileSize;
+    }
+
+    @JsonIgnore
+    public Optional<String> getAuthorization()
+    {
+        return authorization;
     }
 
     @Override

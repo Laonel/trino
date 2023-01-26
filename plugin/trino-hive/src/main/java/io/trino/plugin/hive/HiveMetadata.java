@@ -3251,7 +3251,8 @@ public class HiveMetadata
                 ImmutableSet.of(), // Projected columns is used only during optimization phase of planning
                 hiveTable.getTransaction(),
                 hiveTable.isRecordScannedFiles(),
-                hiveTable.getMaxScannedFileSize());
+                hiveTable.getMaxScannedFileSize(),
+                hiveTable.getAuthorization());
     }
 
     @VisibleForTesting

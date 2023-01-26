@@ -173,7 +173,8 @@ public class HivePartitionManager
                 handle.getProjectedColumns(),
                 handle.getTransaction(),
                 handle.isRecordScannedFiles(),
-                handle.getMaxScannedFileSize());
+                handle.getMaxScannedFileSize(),
+                Optional.empty());
     }
 
     public Iterator<HivePartition> getPartitions(SemiTransactionalHiveMetastore metastore, HiveTableHandle table)

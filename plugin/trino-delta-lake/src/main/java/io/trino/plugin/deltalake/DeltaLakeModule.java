@@ -64,6 +64,7 @@ import io.trino.spi.function.FunctionProvider;
 import io.trino.spi.function.table.ConnectorTableFunction;
 import io.trino.spi.procedure.Procedure;
 
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
 import static com.google.inject.multibindings.MapBinder.newMapBinder;
@@ -159,7 +160,7 @@ public class DeltaLakeModule
         return (identity, autoCommit) -> new TransactionalMetadata()
         {
             @Override
-            public SemiTransactionalHiveMetastore getMetastore()
+            public SemiTransactionalHiveMetastore getMetastore(Optional<ConnectorSession> session)
             {
                 throw new RuntimeException("SemiTransactionalHiveMetastore is not used by Delta");
             }

@@ -453,9 +453,9 @@ public class HiveMetadata
     }
 
     @Override
-    public SemiTransactionalHiveMetastore getMetastore()
+    public SemiTransactionalHiveMetastore getMetastore(Optional<ConnectorSession> session)
     {
-        return metastore;
+        return session.map(this::getMetastore).orElse(metastore);
     }
 
     @Override

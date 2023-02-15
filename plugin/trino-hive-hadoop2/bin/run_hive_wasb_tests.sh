@@ -21,7 +21,7 @@ deploy_core_site_xml core-site.xml.wasb-template \
 exec_in_hadoop_master_container supervisorctl restart hive-server2
 retry check_hadoop
 
-create_test_tables "wasb://${WASB_CONTAINER}@${WASB_ACCOUNT}.blob.core.windows.net/${test_directory}"
+create_test_tables "wasbs://${WASB_CONTAINER}@${WASB_ACCOUNT}.blob.core.windows.net/${test_directory}"
 
 stop_unnecessary_hadoop_services
 

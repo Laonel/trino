@@ -3,6 +3,10 @@ description: "Compile currently checked out commit"
 inputs:
   base_ref:
     description: 'Git base ref'
+  aws-access-key-id:
+    description: "Access key for AWS account to log into"
+  aws-secret-access-key:
+    description: "Secret key for AWS account to log into"
 
 runs:
   using: composite
@@ -25,6 +29,8 @@ runs:
       with:
         # Dependencies are downloaded explicitly below, after MAVEN has been set here. This allows modifications to the MAVEN setup with a PR.
         download_dependencies: false
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
     - name: Check if a specified commit compiles
       shell: bash
       if: steps.check-compile-commit-success.outputs.cache-hit != 'true'

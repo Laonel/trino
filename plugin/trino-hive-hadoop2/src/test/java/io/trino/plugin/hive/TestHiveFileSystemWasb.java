@@ -75,6 +75,6 @@ public class TestHiveFileSystemWasb
     @Override
     protected Path getBasePath()
     {
-        return new Path(format("wasb://%s@%s.blob.core.windows.net/%s/", container, account, testDirectory));
+        return new Path(format("wasbs://%s@%s.blob.core.windows.net/%s/", container, account, testDirectory));
     }
 }

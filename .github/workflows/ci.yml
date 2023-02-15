@@ -52,13 +52,13 @@ concurrency:
 
 jobs:
   maven-checks:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     strategy:
       fail-fast: false
       matrix:
         java-version:
           - 17
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v3
         with:
@@ -93,7 +93,7 @@ jobs:
         run: rm -rf ~/.m2/repository/io/trino/trino-*
 
   check-commits-dispatcher:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     if: github.event_name == 'pull_request'
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -123,7 +123,7 @@ jobs:
           echo "matrix=$(jq -c '.' commit-matrix.json)" >> $GITHUB_OUTPUT
 
   check-commit:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     needs: check-commits-dispatcher
     if: github.event_name == 'pull_request' && needs.check-commits-dispatcher.outputs.matrix != ''
     strategy:
@@ -147,7 +147,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.ENGINEERING_AWS_SECRET_ACCESS_KEY }}
 
   error-prone-checks:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v3
@@ -179,7 +179,7 @@ jobs:
         run: rm -rf ~/.m2/repository
 
   web-ui-checks:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v3
@@ -193,8 +193,8 @@ jobs:
         run: core/trino-main/bin/check_webui.sh
 
   test-jdbc-compatibility:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
+    timeout-minutes: 45
     env:
       SECRETS_PRESENT: ${{ secrets.SECRETS_PRESENT }}
     steps:
@@ -259,7 +259,7 @@ jobs:
         run: rm -rf ~/.m2/repository
 
   hive-tests:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     strategy:
       fail-fast: false
       matrix:
@@ -414,7 +414,7 @@ jobs:
         run: rm -rf ~/.m2/repository
 
   test-other-modules:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     timeout-minutes: 60
     env:
       SECRETS_PRESENT: ${{ secrets.SECRETS_PRESENT }}
@@ -503,7 +503,7 @@ jobs:
         run: rm -rf ~/.m2/repository
 
   build-test-matrix:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -586,7 +586,7 @@ jobs:
         run: rm -rf ~/.m2/repository
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     needs: build-test-matrix
     if: needs.build-test-matrix.outputs.matrix != '{}'
     strategy:
@@ -792,7 +792,7 @@ jobs:
         run: rm -rf ~/.m2/repository
 
   build-pt:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       product-tests-changed: ${{ steps.filter.outputs.product-tests }}
@@ -1010,7 +1010,7 @@ jobs:
         run: rm -rf ~/.m2/repository
 
   pt:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     # explicitly define the name to avoid adding the value of the `ignore exclusion if` matrix item
     name: pt (${{ matrix.config }}, ${{ matrix.suite }}, ${{ matrix.jdk }})
     if: needs.build-pt.outputs.matrix != '{}'

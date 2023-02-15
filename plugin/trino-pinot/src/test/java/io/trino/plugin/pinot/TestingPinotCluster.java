@@ -48,6 +48,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -123,6 +124,7 @@ public class TestingPinotCluster
 
         server = new GenericContainer<>(parse(pinotImageName))
                 .withStartupAttempts(3)
+                .withStartupTimeout(Duration.ofMinutes(2))
                 .withNetwork(network)
                 .withClasspathResourceMapping("/pinot-server", "/var/pinot/server/config", BindMode.READ_ONLY)
                 .withEnv("JAVA_OPTS", "-Xmx512m -Dlog4j2.configurationFile=/opt/pinot/conf/pinot-server-log4j2.xml -Dplugins.dir=/opt/pinot/plugins")

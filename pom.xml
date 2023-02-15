@@ -28,9 +28,8 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:git://github.com/trinodb/trino.git</connection>
-        <url>https://github.com/trinodb/trino</url>
-        <tag>HEAD</tag>
+        <connection>scm:git:git://github.com/starburstdata/starburst-trino.git</connection>
+        <url>https://github.com/starburstdata/starburst-trino</url>
     </scm>
 
     <properties>
@@ -98,6 +97,14 @@
         </air.test.jvm.additional-arguments>
 
         <air.javadoc.lint>-missing</air.javadoc.lint>
+
+        <!-- Internal deployment properties -->
+        <air.repository.snapshot.id>starburstdata-sep.snapshots</air.repository.snapshot.id>
+        <air.repository.snapshot.name>Starburstdata Snapshots</air.repository.snapshot.name>
+        <air.repository.snapshot.url>https://starburstdata-sep-cicd-843985043183.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/</air.repository.snapshot.url>
+        <air.repository.release.id>starburstdata-sep.releases</air.repository.release.id>
+        <air.repository.release.name>Starburstdata Releases</air.repository.release.name>
+        <air.repository.release.url>https://starburstdata-sep-cicd-843985043183.d.codeartifact.us-east-2.amazonaws.com/maven/releases/</air.repository.release.url>
     </properties>
 
     <modules>
@@ -197,6 +204,27 @@
         <module>testing/trino-testing-services</module>
         <module>testing/trino-tests</module>
     </modules>
+
+    <repositories>
+        <!-- Allow the consumption of artifacts from our internal snapshot and release repositories -->
+        <repository>
+            <id>${air.repository.snapshot.id}</id>
+            <url>${air.repository.snapshot.url}</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>${air.repository.release.id}</id>
+            <url>${air.repository.release.url}</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
+    </repositories>
 
     <dependencyManagement>
         <dependencies>

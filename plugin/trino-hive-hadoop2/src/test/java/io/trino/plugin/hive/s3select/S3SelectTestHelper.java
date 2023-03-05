@@ -34,7 +34,6 @@ import io.trino.plugin.base.CatalogName;
 import io.trino.plugin.hive.AbstractTestHiveFileSystem.TestingHiveMetastore;
 import io.trino.plugin.hive.DefaultHiveMaterializedViewMetadataFactory;
 import io.trino.plugin.hive.DefaultHiveViewReaderFactory;
-import io.trino.plugin.hive.GenericHiveRecordCursorProvider;
 import io.trino.plugin.hive.HiveConfig;
 import io.trino.plugin.hive.HiveLocationService;
 import io.trino.plugin.hive.HiveMetadataFactory;
@@ -78,7 +77,6 @@ import static io.trino.plugin.hive.HiveFileSystemTestUtils.getSplitsCount;
 import static io.trino.plugin.hive.HiveTestUtils.HDFS_FILE_SYSTEM_STATS;
 import static io.trino.plugin.hive.HiveTestUtils.getDefaultHiveFileWriterFactories;
 import static io.trino.plugin.hive.HiveTestUtils.getDefaultHivePageSourceFactories;
-import static io.trino.plugin.hive.HiveTestUtils.getDefaultHiveRecordCursorProviders;
 import static io.trino.plugin.hive.TestingThriftHiveMetastoreBuilder.testingThriftHiveMetastoreBuilder;
 import static io.trino.spi.connector.MetadataProvider.NOOP_METADATA_PROVIDER;
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -196,11 +194,8 @@ public class S3SelectTestHelper
 
         pageSourceProvider = new HivePageSourceProvider(
                 TESTING_TYPE_MANAGER,
-                hdfsEnvironment,
                 this.hiveConfig,
-                getDefaultHivePageSourceFactories(hdfsEnvironment, this.hiveConfig),
-                getDefaultHiveRecordCursorProviders(this.hiveConfig, hdfsEnvironment),
-                new GenericHiveRecordCursorProvider(hdfsEnvironment, this.hiveConfig));
+                getDefaultHivePageSourceFactories(hdfsEnvironment, this.hiveConfig));
     }
 
     public S3SelectTestHelper(String host,

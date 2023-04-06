@@ -10,7 +10,7 @@
 
     <groupId>io.trino</groupId>
     <artifactId>trino-root</artifactId>
-    <version>412-e-SNAPSHOT</version>
+    <version>413-e-SNAPSHOT</version>
 
     <name>trino-root</name>
     <description>Trino</description>

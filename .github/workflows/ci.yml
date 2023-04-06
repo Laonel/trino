@@ -89,7 +89,7 @@ jobs:
       - name: Test JDBC shading
         # Run only integration tests to verify JDBC driver shading
         run: |
-          export MAVEN_OPTS="${MAVEN_INSTALL_OPTS}"          
+          export MAVEN_OPTS="${MAVEN_INSTALL_OPTS}"
           $MAVEN failsafe:integration-test -B --strict-checksums -P ci -pl :trino-jdbc
       - name: Clean Maven Output
         run: $MAVEN clean -pl '!:trino-server,!:trino-cli'
@@ -874,6 +874,7 @@ jobs:
             - suite-delta-lake-databricks91
             - suite-delta-lake-databricks104
             - suite-delta-lake-databricks113
+            - suite-delta-lake-databricks122
             - suite-gcs
             - suite-clients
             - suite-functions
@@ -907,6 +908,9 @@ jobs:
               config: hdp3
 
             - suite: suite-delta-lake-databricks113
+              config: hdp3
+
+            - suite: suite-delta-lake-databricks122
               config: hdp3
 
           ignore exclusion if:
@@ -1004,6 +1008,7 @@ jobs:
           DATABRICKS_91_JDBC_URL:
           DATABRICKS_104_JDBC_URL:
           DATABRICKS_113_JDBC_URL:
+          DATABRICKS_122_JDBC_URL:
           DATABRICKS_LOGIN:
           DATABRICKS_TOKEN:
           GCP_CREDENTIALS_KEY:
@@ -1076,6 +1081,7 @@ jobs:
           DATABRICKS_91_JDBC_URL: ${{ env.DATABRICKS_91_JDBC_URL }}
           DATABRICKS_104_JDBC_URL: ${{ env.DATABRICKS_104_JDBC_URL }}
           DATABRICKS_113_JDBC_URL: ${{ env.DATABRICKS_113_JDBC_URL }}
+          DATABRICKS_122_JDBC_URL: ${{ env.DATABRICKS_122_JDBC_URL }}
           DATABRICKS_LOGIN: token
           DATABRICKS_TOKEN: ${{ env.DATABRICKS_TEST_TOKEN }}
           GCP_CREDENTIALS_KEY: ${{ env.GCP_CREDENTIALS_KEY }}

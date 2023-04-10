@@ -73,6 +73,11 @@ jobs:
           java-version: ${{ matrix.java-version }}
           aws-access-key-id: ${{ secrets.ENGINEERING_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.ENGINEERING_AWS_SECRET_ACCESS_KEY }}
+      - name: Check SPI backward compatibility
+        run: |
+          export MAVEN_OPTS="${MAVEN_INSTALL_OPTS}"
+          $MAVEN clean install ${MAVEN_FAST_INSTALL} -pl :trino-spi -am
+          ${MAVEN//--offline/} clean verify -B --strict-checksums -DskipTests -pl :trino-spi
       - name: Maven Checks
         run: |
           export MAVEN_OPTS="${MAVEN_INSTALL_OPTS}"

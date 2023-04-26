@@ -75,13 +75,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.ENGINEERING_AWS_SECRET_ACCESS_KEY }}
       - name: Check SPI backward compatibility
         run: |
-          export MAVEN_OPTS="${MAVEN_INSTALL_OPTS}"
+          set -x
+          CURRENT_VERSION=$(${MAVEN//--offline/} -q help:evaluate -Dexpression='project.version' -DforceStdout)
+          BASE_VERSION=${CURRENT_VERSION//-*/}
+          OLD_VERSION=$((BASE_VERSION-1))
+          echo "Running revapi against version: $OLD_VERSION"
+          export MAVEN_OPTS="${MAVEN_INSTALL_OPTS} -Drevapi.oldVersion="$OLD_VERSION""
           $MAVEN clean install ${MAVEN_FAST_INSTALL} -pl :trino-spi -am
           ${MAVEN//--offline/} clean verify -B --strict-checksums -DskipTests -pl :trino-spi
       - name: Maven Checks
         run: |
           export MAVEN_OPTS="${MAVEN_INSTALL_OPTS}"
-          $MAVEN clean verify -B --strict-checksums -V -T 1C -DskipTests -P ci -pl '!:trino-server-rpm'
+          $MAVEN clean verify -B --strict-checksums -V -T 1C -DskipTests -Dtrino.check.skip-revapi=true -P ci -pl '!:trino-server-rpm'
       - name: Remove Trino from local Maven repo to avoid caching it
         # Avoid caching artifacts built in this job, cache should only include dependencies
         if: steps.cache.outputs.cache-hit != 'true'

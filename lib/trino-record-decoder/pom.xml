@@ -17,6 +17,10 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -63,6 +67,12 @@
             <groupId>io.airlift</groupId>
             <artifactId>slice</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.trino</groupId>
+            <artifactId>trino-cache</artifactId>
+        </dependency>
+
+        <!-- Trino SPI -->
         <dependency>
             <groupId>io.trino</groupId>
             <artifactId>trino-spi</artifactId>
@@ -116,6 +126,7 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-protobuf-provider</artifactId>
+            <!-- This is under Confluent Community License and it should not be used with compile scope -->
             <scope>test</scope>
         </dependency>
 

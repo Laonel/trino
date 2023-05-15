@@ -719,14 +719,16 @@ jobs:
           $MAVEN test ${MAVEN_TEST} -pl :trino-bigquery -Pcloud-tests-case-insensitive-mapping -Dbigquery.credentials-key="${BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY}"
       - name: Iceberg Cloud Tests
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.ENGINEERING_TESTS_AWS_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.ENGINEERING_TESTS_AWS_SECRET_KEY }}
+          # TODO find proper credentials to run Iceberg tests
+          AWS_ACCESS_KEY_ID: ''
+          AWS_SECRET_ACCESS_KEY: ''
           AWS_REGION: us-east-2
           S3_BUCKET: starburstdata-test
-          GCP_CREDENTIALS_KEY: ${{ env.GCP_CREDENTIALS_KEY }}
-          ABFS_CONTAINER: ${{ secrets.AZURE_ABFS_CONTAINER }}
-          ABFS_ACCOUNT: ${{ secrets.AZURE_ABFS_ACCOUNT }}
-          ABFS_ACCESS_KEY: ${{ secrets.AZURE_ABFS_ACCESSKEY }}
+          # TODO should use env.GCP_CREDENTIALS_KEY
+          GCP_CREDENTIALS_KEY: ''
+          ABFS_CONTAINER: 'container'
+          ABFS_ACCOUNT: ${{ env.ABFS_TESTS_ABFS_ACCOUNT }}
+          ABFS_ACCESS_KEY: ${{ env.ABFS_TESTS_ABFS_ACCESS_KEY }}
         if: >-
           contains(matrix.modules, 'trino-iceberg') && contains(matrix.profile, 'cloud-tests') &&
           (env.AWS_ACCESS_KEY_ID != '' || env.AWS_SECRET_ACCESS_KEY != '' || env.GCP_CREDENTIALS_KEY != '')

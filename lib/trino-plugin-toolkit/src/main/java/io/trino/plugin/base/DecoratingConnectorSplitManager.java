@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.base;
 
+import com.google.inject.Inject;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorSplitManager;
 import io.trino.spi.connector.ConnectorSplitSource;
@@ -21,8 +22,6 @@ import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.Constraint;
 import io.trino.spi.connector.DynamicFilter;
 import io.trino.spi.ptf.ConnectorTableFunctionHandle;
-
-import javax.inject.Inject;
 
 import java.util.Set;
 

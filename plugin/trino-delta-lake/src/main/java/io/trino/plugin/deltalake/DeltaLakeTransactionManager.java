@@ -13,13 +13,13 @@
  */
 package io.trino.plugin.deltalake;
 
+import com.google.inject.Inject;
 import io.trino.plugin.hive.metastore.HiveMetastore;
 import io.trino.spi.classloader.ThreadContextClassLoader;
 import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.security.ConnectorIdentity;
 
 import javax.annotation.concurrent.GuardedBy;
-import javax.inject.Inject;
 
 import java.util.Map;
 import java.util.Optional;

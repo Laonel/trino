@@ -705,7 +705,7 @@ jobs:
             -Dtesting.alternate-bq-project-id=bigquery-cicd-alternate
       - name: Cloud BigQuery Arrow Serialization Tests
         env:
-          BIGQUERY_CREDENTIALS_KEY: ${{ secrets.BIGQUERY_CREDENTIALS_KEY }}
+          BIGQUERY_CREDENTIALS_KEY: ${{ env.BIGQUERY_CREDENTIALS_KEY }}
         if: matrix.modules == 'plugin/trino-bigquery' && contains(matrix.profile, 'cloud-tests-arrow') && env.BIGQUERY_CREDENTIALS_KEY != ''
         run: |
           $MAVEN test ${MAVEN_TEST} -pl :trino-bigquery -Pcloud-tests-arrow \
@@ -713,7 +713,7 @@ jobs:
             -Dtesting.gcp-storage-bucket="trino-ci-test"
       - name: Cloud BigQuery Case Insensitive Mapping Tests
         env:
-          BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY: ${{ secrets.BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY }}
+          BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY: ${{ env.BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY }}
         if: matrix.modules == 'plugin/trino-bigquery' && !contains(matrix.profile, 'cloud-tests-arrow') && env.BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY != ''
         run: |
           $MAVEN test ${MAVEN_TEST} -pl :trino-bigquery -Pcloud-tests-case-insensitive-mapping -Dbigquery.credentials-key="${BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY}"
@@ -723,7 +723,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.ENGINEERING_TESTS_AWS_SECRET_KEY }}
           AWS_REGION: us-east-2
           S3_BUCKET: starburstdata-test
-          GCP_CREDENTIALS_KEY: ${{ secrets.GCP_CREDENTIALS_KEY }}
+          GCP_CREDENTIALS_KEY: ${{ env.GCP_CREDENTIALS_KEY }}
           ABFS_CONTAINER: ${{ secrets.AZURE_ABFS_CONTAINER }}
           ABFS_ACCOUNT: ${{ secrets.AZURE_ABFS_ACCOUNT }}
           ABFS_ACCESS_KEY: ${{ secrets.AZURE_ABFS_ACCESSKEY }}

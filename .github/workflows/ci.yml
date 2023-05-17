@@ -37,6 +37,7 @@ env:
   # used by actions/cache to retry the download after this time: https://github.com/actions/cache/blob/main/workarounds.md#cache-segment-restore-timeout
   SEGMENT_DOWNLOAD_TIMEOUT_MINS: 5
   MAVEN_CONFIG: "-s ${{ github.workspace }}/settings.xml"
+  CI_SKIP_SECRETS_PRESENCE_CHECKS: ${{ secrets.CI_SKIP_SECRETS_PRESENCE_CHECKS }}
 
 # Cancel previous PR builds.
 concurrency:
@@ -702,7 +703,7 @@ jobs:
         # Run tests if any of the secrets is present. Do not skip tests when one secret renamed, or secret name has a typo.
         if: >-
           contains(matrix.modules, 'trino-delta-lake') && contains(matrix.profile, 'cloud-tests') &&
-          (env.ABFS_ACCOUNT != '' || env.ABFS_CONTAINER != '' || env.ABFS_ACCESSKEY != '' || env.AWS_ACCESS_KEY_ID != '' || env.AWS_SECRET_ACCESS_KEY != '' || env.GCP_CREDENTIALS_KEY != '')
+          (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.ABFS_ACCOUNT != '' || env.ABFS_CONTAINER != '' || env.ABFS_ACCESSKEY != '' || env.AWS_ACCESS_KEY_ID != '' || env.AWS_SECRET_ACCESS_KEY != '' || env.GCP_CREDENTIALS_KEY != '')
         run: |
           $MAVEN test ${MAVEN_TEST} ${{ format('-P {0}', matrix.profile) }} -pl :trino-delta-lake \
             -Dhive.hadoop2.azure-abfs-container="${ABFS_CONTAINER}" \
@@ -713,13 +714,13 @@ jobs:
       - name: Memsql Tests
         env:
           MEMSQL_LICENSE: ${{ env.MEMSQL_LICENSE }}
-        if: matrix.modules == 'plugin/trino-singlestore' && env.MEMSQL_LICENSE != ''
+        if: matrix.modules == 'plugin/trino-singlestore' && (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.MEMSQL_LICENSE != '')
         run: |
           $MAVEN test ${MAVEN_TEST} -pl :trino-singlestore -Dmemsql.license=${MEMSQL_LICENSE}
       - name: Cloud BigQuery Tests
         env:
           BIGQUERY_CREDENTIALS_KEY: ${{ env.BIGQUERY_CREDENTIALS_KEY }}
-        if: matrix.modules == 'plugin/trino-bigquery' && !contains(matrix.profile, 'cloud-tests-arrow') && env.BIGQUERY_CREDENTIALS_KEY != ''
+        if: matrix.modules == 'plugin/trino-bigquery' && !contains(matrix.profile, 'cloud-tests-arrow') && (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.BIGQUERY_CREDENTIALS_KEY != '')
         run: |
           $MAVEN test ${MAVEN_TEST} -pl :trino-bigquery -Pcloud-tests \
             -Dbigquery.credentials-key="${BIGQUERY_CREDENTIALS_KEY}" \
@@ -728,7 +729,7 @@ jobs:
       - name: Cloud BigQuery Arrow Serialization Tests
         env:
           BIGQUERY_CREDENTIALS_KEY: ${{ env.BIGQUERY_CREDENTIALS_KEY }}
-        if: matrix.modules == 'plugin/trino-bigquery' && contains(matrix.profile, 'cloud-tests-arrow') && env.BIGQUERY_CREDENTIALS_KEY != ''
+        if: matrix.modules == 'plugin/trino-bigquery' && contains(matrix.profile, 'cloud-tests-arrow') && (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.BIGQUERY_CREDENTIALS_KEY != '')
         run: |
           $MAVEN test ${MAVEN_TEST} -pl :trino-bigquery -Pcloud-tests-arrow \
             -Dbigquery.credentials-key="${BIGQUERY_CREDENTIALS_KEY}" \
@@ -736,7 +737,7 @@ jobs:
       - name: Cloud BigQuery Case Insensitive Mapping Tests
         env:
           BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY: ${{ env.BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY }}
-        if: matrix.modules == 'plugin/trino-bigquery' && !contains(matrix.profile, 'cloud-tests-arrow') && env.BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY != ''
+        if: matrix.modules == 'plugin/trino-bigquery' && !contains(matrix.profile, 'cloud-tests-arrow') && (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY != '')
         run: |
           $MAVEN test ${MAVEN_TEST} -pl :trino-bigquery -Pcloud-tests-case-insensitive-mapping -Dbigquery.credentials-key="${BIGQUERY_CASE_INSENSITIVE_CREDENTIALS_KEY}"
       - name: Iceberg Cloud Tests
@@ -753,7 +754,7 @@ jobs:
           ABFS_ACCESS_KEY: ${{ env.ABFS_TESTS_ABFS_ACCESS_KEY }}
         if: >-
           contains(matrix.modules, 'trino-iceberg') && contains(matrix.profile, 'cloud-tests') &&
-          (env.AWS_ACCESS_KEY_ID != '' || env.AWS_SECRET_ACCESS_KEY != '' || env.GCP_CREDENTIALS_KEY != '')
+          (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.AWS_ACCESS_KEY_ID != '' || env.AWS_SECRET_ACCESS_KEY != '' || env.GCP_CREDENTIALS_KEY != '')
         run: |
           $MAVEN test ${MAVEN_TEST} -pl :trino-iceberg ${{ format('-P {0}', matrix.profile) }} \
             -Ds3.bucket=${S3_BUCKET} \
@@ -774,7 +775,7 @@ jobs:
         if: >-
           contains(matrix.modules, 'trino-redshift') &&
           (contains(matrix.profile, 'cloud-tests') || contains(matrix.profile, 'fte-tests')) &&
-          (env.AWS_ACCESS_KEY_ID != '' || env.REDSHIFT_SUBNET_GROUP_NAME != '')
+          (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.AWS_ACCESS_KEY_ID != '' || env.REDSHIFT_SUBNET_GROUP_NAME != '')
         run: |
           source .github/bin/redshift/setup-aws-redshift.sh
 
@@ -948,9 +949,6 @@ jobs:
               config: hdp3
 
             - suite: suite-delta-lake-databricks104
-              config: hdp3
-
-            - suite: suite-delta-lake-databricks113
               config: hdp3
 
             - suite: suite-delta-lake-databricks113

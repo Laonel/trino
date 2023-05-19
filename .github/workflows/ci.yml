@@ -51,6 +51,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-success:
+    # This job is executed only if any dependency fails to mark entire workflow execution as failure.
+    # Otherwise it is skipped which is treated as success of the entire workflow execution.
+    if: ${{ !success() }}
+    runs-on: [self-hosted, sep-cicd, gha-fleet-nano]
+    needs:
+      [
+        maven-checks,
+        error-prone-checks,
+        web-ui-checks,
+        test-jdbc-compatibility,
+        hive-tests,
+        test-other-modules,
+        test,
+        pt,
+      ]
+    steps:
+      - run: false
   maven-checks:
     runs-on: [self-hosted, sep-cicd, gha-fleet-small]
     strategy:

@@ -660,14 +660,10 @@ public class GlueHiveMetastore
     {
         boolean newTableCreated = false;
         try {
-            GetTableRequest getTableRequest = new GetTableRequest().withDatabaseName(databaseName)
-                    .withName(tableName);
-            GetTableResult glueTable = glueClient.getTable(getTableRequest);
+            GetTableResult glueTable = getGlueTable(databaseName, tableName)
+                    .orElseThrow(() -> new TableNotFoundException(new SchemaTableName(databaseName, tableName)));
             TableInput tableInput = convertGlueTableToTableInput(glueTable.getTable(), newTableName);
-            CreateTableRequest createTableRequest = new CreateTableRequest()
-                    .withDatabaseName(newDatabaseName)
-                    .withTableInput(tableInput);
-            stats.getCreateTable().call(() -> glueClient.createTable(createTableRequest));
+            stats.getCreateTable().call(() -> createGlueTable(newDatabaseName, tableInput));
             newTableCreated = true;
             dropTable(databaseName, tableName, false);
         }

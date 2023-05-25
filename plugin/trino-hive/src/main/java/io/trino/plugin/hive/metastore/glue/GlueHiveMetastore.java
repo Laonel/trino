@@ -30,6 +30,7 @@ import com.amazonaws.services.glue.model.BatchUpdatePartitionResult;
 import com.amazonaws.services.glue.model.ConcurrentModificationException;
 import com.amazonaws.services.glue.model.CreateDatabaseRequest;
 import com.amazonaws.services.glue.model.CreateTableRequest;
+import com.amazonaws.services.glue.model.CreateTableResult;
 import com.amazonaws.services.glue.model.DatabaseInput;
 import com.amazonaws.services.glue.model.DeleteDatabaseRequest;
 import com.amazonaws.services.glue.model.DeletePartitionRequest;
@@ -282,12 +283,16 @@ public class GlueHiveMetastore
     @Override
     public Optional<Table> getTable(String databaseName, String tableName)
     {
+        return stats.getGetTable().call(() -> getGlueTable(databaseName, tableName))
+                .map(table -> GlueToTrinoConverter.convertTable(table.getTable(), databaseName));
+    }
+
+    private Optional<GetTableResult> getGlueTable(String databaseName, String tableName)
+    {
         try {
-            GetTableResult result = stats.getGetTable().call(() ->
-                    glueClient.getTable(new GetTableRequest()
-                            .withDatabaseName(databaseName)
-                            .withName(tableName)));
-            return Optional.of(GlueToTrinoConverter.convertTable(result.getTable(), databaseName));
+            return Optional.of(glueClient.getTable(new GetTableRequest()
+                    .withDatabaseName(databaseName)
+                    .withName(tableName)));
         }
         catch (EntityNotFoundException e) {
             return Optional.empty();
@@ -568,18 +573,22 @@ public class GlueHiveMetastore
     @Override
     public void createTable(Table table, PrincipalPrivileges principalPrivileges)
     {
+        TableInput input = GlueInputConverter.convertTable(table);
+        stats.getCreateTable().call(() -> createGlueTable(table.getDatabaseName(), input));
+    }
+
+    private CreateTableResult createGlueTable(String databaseName, TableInput tableInput)
+    {
         try {
-            TableInput input = GlueInputConverter.convertTable(table);
-            stats.getCreateTable().call(() ->
-                    glueClient.createTable(new CreateTableRequest()
-                            .withDatabaseName(table.getDatabaseName())
-                            .withTableInput(input)));
+            return glueClient.createTable(new CreateTableRequest()
+                    .withDatabaseName(databaseName)
+                    .withTableInput(tableInput));
         }
         catch (AlreadyExistsException e) {
-            throw new TableAlreadyExistsException(new SchemaTableName(table.getDatabaseName(), table.getTableName()));
+            throw new TableAlreadyExistsException(new SchemaTableName(databaseName, tableInput.getName()));
         }
         catch (EntityNotFoundException e) {
-            throw new SchemaNotFoundException(table.getDatabaseName());
+            throw new SchemaNotFoundException(databaseName);
         }
         catch (AmazonServiceException e) {
             throw new TrinoException(HIVE_METASTORE_ERROR, e);

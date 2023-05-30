@@ -752,7 +752,9 @@ jobs:
           ABFS_CONTAINER: 'container'
           ABFS_ACCOUNT: ${{ env.ABFS_TESTS_ABFS_ACCOUNT }}
           ABFS_ACCESS_KEY: ${{ env.ABFS_TESTS_ABFS_ACCESS_KEY }}
+        # TODO remove `false &&` once right credentials are passed to this step
         if: >-
+          false &&
           contains(matrix.modules, 'trino-iceberg') && contains(matrix.profile, 'cloud-tests') &&
           (env.CI_SKIP_SECRETS_PRESENCE_CHECKS != '' || env.AWS_ACCESS_KEY_ID != '' || env.AWS_SECRET_ACCESS_KEY != '' || env.GCP_CREDENTIALS_KEY != '')
         run: |

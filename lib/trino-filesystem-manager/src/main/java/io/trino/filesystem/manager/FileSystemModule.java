@@ -19,6 +19,8 @@ import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import io.airlift.configuration.AbstractConfigurationAwareModule;
 import io.opentelemetry.api.trace.Tracer;
+import io.trino.filesystem.DecoratingTrinoFileSystemFactory;
+import io.trino.filesystem.TrinoFileSystemDecorator;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.filesystem.hdfs.HdfsFileSystemFactory;
 import io.trino.filesystem.hdfs.HdfsFileSystemModule;
@@ -29,9 +31,11 @@ import io.trino.hdfs.s3.HiveS3Module;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.google.inject.Scopes.SINGLETON;
 import static com.google.inject.multibindings.MapBinder.newMapBinder;
+import static com.google.inject.multibindings.Multibinder.newSetBinder;
 
 public class FileSystemModule
         extends AbstractConfigurationAwareModule
@@ -58,6 +62,7 @@ public class FileSystemModule
         else {
             install(new HiveS3Module());
         }
+        newSetBinder(binder, TrinoFileSystemDecorator.class);
     }
 
     @Provides
@@ -65,9 +70,12 @@ public class FileSystemModule
     public TrinoFileSystemFactory createFileSystemFactory(
             HdfsFileSystemFactoryHolder hdfsFileSystemFactory,
             Map<String, TrinoFileSystemFactory> factories,
+            Set<TrinoFileSystemDecorator> decorators,
             Tracer tracer)
     {
-        TrinoFileSystemFactory delegate = new SwitchingFileSystemFactory(hdfsFileSystemFactory.value(), factories);
+        TrinoFileSystemFactory delegate = new DecoratingTrinoFileSystemFactory(
+                new SwitchingFileSystemFactory(hdfsFileSystemFactory.value(), factories),
+                decorators);
         return new TracingFileSystemFactory(tracer, delegate);
     }
 

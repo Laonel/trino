@@ -113,6 +113,8 @@ jobs:
 
   artifact-checks:
     runs-on: [self-hosted, sep-cicd, gha-fleet-small]
+    # Starburst is using their own images for Trino
+    if: false
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3

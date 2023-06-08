@@ -205,11 +205,6 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <excludes>
-                                <exclude>**/TestRedshiftAutomaticJoinPushdown.java</exclude>
-                                <exclude>**/TestRedshiftConnectorTest.java</exclude>
-                                <exclude>**/TestRedshiftConnectorSmokeTest.java</exclude>
-                                <exclude>**/TestRedshiftTableStatisticsReader.java</exclude>
-                                <exclude>**/TestRedshiftTypeMapping.java</exclude>
                                 <exclude>**/Test*FailureRecoveryTest.java</exclude>
                             </excludes>
                         </configuration>

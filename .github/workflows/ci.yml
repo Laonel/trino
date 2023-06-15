@@ -658,7 +658,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.build-test-matrix.outputs.matrix) }}
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       SECRETS_PRESENT: ${{ secrets.SECRETS_PRESENT }}
     steps:

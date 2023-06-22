@@ -21,6 +21,7 @@ import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
+import com.google.inject.TypeLiteral;
 import io.airlift.bootstrap.Bootstrap;
 import io.airlift.bootstrap.LifeCycleManager;
 import io.airlift.discovery.client.Announcer;
@@ -72,6 +73,7 @@ import io.trino.security.GroupProviderManager;
 import io.trino.server.GracefulShutdownHandler;
 import io.trino.server.PluginInstaller;
 import io.trino.server.Server;
+import io.trino.server.ServerLoadableComponent;
 import io.trino.server.ServerMainModule;
 import io.trino.server.SessionPropertyDefaults;
 import io.trino.server.ShutdownAction;
@@ -118,6 +120,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 
@@ -381,6 +384,9 @@ public class TestingTrinoServer
 
         EventListenerManager eventListenerManager = injector.getInstance(EventListenerManager.class);
         eventListeners.forEach(eventListenerManager::addEventListener);
+
+        Set<ServerLoadableComponent> loadableComponents = injector.getInstance(Key.get(new TypeLiteral<>() {}));
+        loadableComponents.forEach(ServerLoadableComponent::load);
 
         injector.getInstance(Announcer.class).forceAnnounce();
 

@@ -74,9 +74,9 @@
     <build>
         <resources>
             <resource>
-                <directory>src/main/antlr4/io/trino</directory>
-                <filtering>false</filtering>
                 <targetPath>antlr</targetPath>
+                <filtering>false</filtering>
+                <directory>src/main/antlr4/io/trino</directory>
             </resource>
         </resources>
 

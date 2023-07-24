@@ -36,6 +36,7 @@ import io.trino.plugin.hive.metastore.PrincipalPrivileges;
 import io.trino.plugin.hive.metastore.Storage;
 import io.trino.plugin.hive.metastore.StorageFormat;
 import io.trino.plugin.hive.metastore.Table;
+import io.trino.plugin.memory.MemoryPlugin;
 import io.trino.spi.connector.CatalogSchemaTableName;
 import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ColumnMetadata;
@@ -57,6 +58,7 @@ import io.trino.sql.planner.planprinter.IoPlanPrinter.FormattedRange;
 import io.trino.sql.planner.planprinter.IoPlanPrinter.IoPlan;
 import io.trino.sql.planner.planprinter.IoPlanPrinter.IoPlan.TableColumnInfo;
 import io.trino.testing.BaseConnectorTest;
+import io.trino.testing.DataProviders;
 import io.trino.testing.DistributedQueryRunner;
 import io.trino.testing.MaterializedResult;
 import io.trino.testing.MaterializedResultWithQueryId;
@@ -154,6 +156,7 @@ import static io.trino.spi.type.DecimalType.createDecimalType;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.IntegerType.INTEGER;
 import static io.trino.spi.type.SmallintType.SMALLINT;
+import static io.trino.spi.type.TimestampType.createTimestampType;
 import static io.trino.spi.type.TinyintType.TINYINT;
 import static io.trino.spi.type.VarcharType.VARCHAR;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
@@ -164,6 +167,7 @@ import static io.trino.sql.planner.planprinter.IoPlanPrinter.FormattedMarker.Bou
 import static io.trino.sql.planner.planprinter.PlanPrinter.textLogicalPlan;
 import static io.trino.sql.tree.ExplainType.Type.DISTRIBUTED;
 import static io.trino.testing.DataProviders.toDataProvider;
+import static io.trino.testing.DataProviders.trueFalse;
 import static io.trino.testing.MaterializedResult.resultBuilder;
 import static io.trino.testing.QueryAssertions.assertEqualsIgnoreOrder;
 import static io.trino.testing.TestingAccessControlManager.TestingPrivilegeType.DELETE_TABLE;
@@ -238,6 +242,10 @@ public abstract class BaseHiveConnectorTest
                 "hive_timestamp_nanos",
                 "hive",
                 ImmutableMap.of("hive.timestamp-precision", "NANOSECONDS"));
+
+        // Memory plugin to check automatic type coercion for various timestamp precision
+        queryRunner.installPlugin(new MemoryPlugin());
+        queryRunner.createCatalog("memory", "memory", ImmutableMap.of());
         return queryRunner;
     }
 
@@ -7943,28 +7951,6 @@ public abstract class BaseHiveConnectorTest
     }
 
     @Test
-    public void testWriteInvalidPrecisionTimestamp()
-    {
-        Session session = withTimestampPrecision(getSession(), HiveTimestampPrecision.MICROSECONDS);
-        assertQueryFails(
-                session,
-                "CREATE TABLE test_invalid_precision_timestamp(ts) AS SELECT TIMESTAMP '2001-02-03 11:22:33.123456789'",
-                "\\QIncorrect timestamp precision for timestamp(9); the configured precision is " + HiveTimestampPrecision.MICROSECONDS + "; column name: ts");
-        assertQueryFails(
-                session,
-                "CREATE TABLE test_invalid_precision_timestamp (ts TIMESTAMP(9))",
-                "\\QIncorrect timestamp precision for timestamp(9); the configured precision is " + HiveTimestampPrecision.MICROSECONDS + "; column name: ts");
-        assertQueryFails(
-                session,
-                "CREATE TABLE test_invalid_precision_timestamp(ts) AS SELECT TIMESTAMP '2001-02-03 11:22:33.123'",
-                "\\QIncorrect timestamp precision for timestamp(3); the configured precision is " + HiveTimestampPrecision.MICROSECONDS + "; column name: ts");
-        assertQueryFails(
-                session,
-                "CREATE TABLE test_invalid_precision_timestamp (ts TIMESTAMP(3))",
-                "\\QIncorrect timestamp precision for timestamp(3); the configured precision is " + HiveTimestampPrecision.MICROSECONDS + "; column name: ts");
-    }
-
-    @Test
     public void testOptimize()
     {
         String tableName = "test_optimize_" + randomNameSuffix();
@@ -8668,6 +8654,109 @@ public abstract class BaseHiveConnectorTest
         }
     }
 
+    @Test(dataProvider = "timestampDefinitionAndPrecisionProvider")
+    public void testVariousTimestampPrecisionOnCreateTable(String inputType, HiveTimestampPrecision timestampPrecision)
+    {
+        Session session = createTimestampPrecisionSpecificSession(timestampPrecision);
+        try (TestTable testTable = new TestTable(
+                query -> getQueryRunner().execute(session, query),
+                "test_coercion_create_table",
+                format("(timestamp_column %s)", inputType))) {
+            assertEquals(
+                    getColumnType(session, testTable.getName(), "timestamp_column"),
+                    createTimestampType(timestampPrecision.getPrecision()).toString());
+        }
+    }
+
+    @Test(dataProvider = "timestampValuesAndPrecisionProvider")
+    public void testVariousTimestampPrecisionOnCreateTableLike(String inputTimestamp, HiveTimestampPrecision timestampPrecision)
+    {
+        Session session = createTimestampPrecisionSpecificSession(timestampPrecision);
+        try (TestTable testBaseTable = new TestTable(
+                getQueryRunner()::execute,
+                "memory.default.test_timestamp_coercion",
+                format("AS SELECT %s timestamp_column", inputTimestamp));
+                TestTable testTable = new TestTable(
+                        query -> getQueryRunner().execute(session, query),
+                        "test_timestamp_coercion",
+                        "(LIKE %s)".formatted(testBaseTable.getName()))) {
+            assertEquals(
+                    getColumnType(session, testTable.getName(), "timestamp_column"),
+                    createTimestampType(timestampPrecision.getPrecision()).toString());
+        }
+    }
+
+    @Test(dataProvider = "timestampValuesPrecisionAndWithDataProvider")
+    public void testVariousTimestampPrecisionOnCreateTableAsSelect(String inputTimestamp, HiveTimestampPrecision timestampPrecision, boolean withData)
+    {
+        Session session = createTimestampPrecisionSpecificSession(timestampPrecision);
+        try (TestTable testTable = new TestTable(
+                query -> getQueryRunner().execute(session, query),
+                "test_timestamp_coercion",
+                format("AS SELECT %s timestamp_column %s", inputTimestamp, withData ? "" : "WITH NO DATA"))) {
+            assertEquals(
+                    getColumnType(session, testTable.getName(), "timestamp_column"),
+                    createTimestampType(timestampPrecision.getPrecision()).toString());
+        }
+    }
+
+    @DataProvider
+    public static Object[][] timestampDefinitionAndPrecisionProvider()
+    {
+        return DataProviders.cartesianProduct(
+                new Object[][]{
+                        {"timestamp(0)"},
+                        {"timestamp(1)"},
+                        {"timestamp(2)"},
+                        {"timestamp(3)"},
+                        {"timestamp(4)"},
+                        {"timestamp(5)"},
+                        {"timestamp(6)"},
+                        {"timestamp(7)"},
+                        {"timestamp(8)"},
+                        {"timestamp(9)"},
+                        {"timestamp(10)"},
+                        {"timestamp(11)"},
+                        {"timestamp(12)"}},
+                timestampPrecision());
+    }
+
+    @DataProvider
+    public static Object[][] timestampValuesPrecisionAndWithDataProvider()
+    {
+        return DataProviders.cartesianProduct(
+                timestampValuesAndPrecisionProvider(),
+                trueFalse());
+    }
+
+    @DataProvider
+    public static Object[][] timestampValuesAndPrecisionProvider()
+    {
+        return DataProviders.cartesianProduct(
+                new Object[][] {
+                        {"TIMESTAMP '1970-01-01 00:00:00'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.1'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.12'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.123'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.1234'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.12345'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.123456'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.1234567'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.12345678'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.123456789'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.1234567890'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.12345678901'"},
+                        {"TIMESTAMP '1970-01-01 00:00:00.123456789012'"}},
+                timestampPrecision());
+    }
+
+    private Session createTimestampPrecisionSpecificSession(HiveTimestampPrecision timestampPrecision)
+    {
+        return Session.builder(getSession())
+                .setCatalogSessionProperty("hive", "timestamp_precision", timestampPrecision.name())
+                .build();
+    }
+
     private static final Set<HiveStorageFormat> NAMED_COLUMN_ONLY_FORMATS = ImmutableSet.of(HiveStorageFormat.AVRO, HiveStorageFormat.JSON);
 
     @DataProvider
@@ -8853,7 +8942,7 @@ public abstract class BaseHiveConnectorTest
     }
 
     @DataProvider
-    public Object[][] timestampPrecision()
+    public static Object[][] timestampPrecision()
     {
         return new Object[][] {
                 {HiveTimestampPrecision.MILLISECONDS},

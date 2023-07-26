@@ -11,9 +11,9 @@ maven_run_tests="${maven} clean test ${MAVEN_TEST:--B} -pl :trino-test-jdbc-comp
 current_version=$(${maven} help:evaluate -Dexpression=project.version -q -DforceStdout)
 current_version=$(echo "${current_version}" | sed -n 's/^\([0-9]\+\)\(-e\)\?\(-SNAPSHOT\)\?$/\1/p')
 previous_released_version=$((current_version - 1))
-first_tested_version=$(git tag --contain $(git rev-list HEAD --since-as-filter='18 month ago' | tail -1) | sort | head -1)
+first_tested_version=352
 # test n-th version only
-version_step=7
+version_step=$(( (previous_released_version - first_tested_version) / 7 ))
 
 echo "Current version: ${current_version}"
 

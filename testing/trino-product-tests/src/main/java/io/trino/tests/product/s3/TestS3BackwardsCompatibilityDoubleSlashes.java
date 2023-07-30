@@ -479,7 +479,10 @@ public class TestS3BackwardsCompatibilityDoubleSlashes
             onTrino413().executeQuery("INSERT INTO " + qualifiedTableName + " VALUES (4, 5)");
 
             List<QueryAssert.Row> expected = ImmutableList.of(row(0, 1), row(2, 3), row(4, 5));
+            // For optimize we need to set task_writer_count to 1, otherwise it will create more than one file.
+            onTrino().executeQuery("SET SESSION task_writer_count = 1");
             onTrino().executeQuery("ALTER TABLE " + qualifiedTableName + " EXECUTE optimize");
+            onTrino().executeQuery("RESET SESSION task_writer_count");
             assertThat(onTrino().executeQuery("TABLE " + qualifiedTableName)).containsOnly(expected);
 
             onTrino().executeQuery("SET SESSION delta.vacuum_min_retention = '0s'");
@@ -516,7 +519,10 @@ public class TestS3BackwardsCompatibilityDoubleSlashes
             onTrino413().executeQuery("INSERT INTO " + qualifiedTableName + " VALUES (4, 5)");
 
             List<QueryAssert.Row> expected = ImmutableList.of(row(0, 1), row(2, 3), row(4, 5));
+            // For optimize we need to set task_writer_count to 1, otherwise it will create more than one file.
+            onTrino().executeQuery("SET SESSION task_writer_count = 1");
             onTrino().executeQuery("ALTER TABLE " + qualifiedTableName + " EXECUTE optimize");
+            onTrino().executeQuery("RESET SESSION task_writer_count");
             assertThat(onTrino().executeQuery("TABLE " + qualifiedTableName)).containsOnly(expected);
 
             onTrino().executeQuery("SET SESSION iceberg.expire_snapshots_min_retention = '0s'");

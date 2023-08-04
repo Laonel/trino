@@ -948,7 +948,6 @@ jobs:
             # suite-4 does not exist
             - suite-5
             - suite-azure
-            - suite-delta-lake-databricks73
             - suite-delta-lake-databricks91
             - suite-delta-lake-databricks104
             - suite-delta-lake-databricks113
@@ -972,9 +971,6 @@ jobs:
 
             - suite: suite-gcs
               config: default
-
-            - suite: suite-delta-lake-databricks73
-              config: hdp3
 
             - suite: suite-delta-lake-databricks91
               config: hdp3
@@ -1079,7 +1075,6 @@ jobs:
           AWS_REGION:
           TRINO_AWS_ACCESS_KEY_ID:
           TRINO_AWS_SECRET_ACCESS_KEY:
-          DATABRICKS_73_JDBC_URL:
           DATABRICKS_91_JDBC_URL:
           DATABRICKS_104_JDBC_URL:
           DATABRICKS_113_JDBC_URL:
@@ -1148,7 +1143,6 @@ jobs:
           AWS_REGION: us-east-1
           TRINO_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           TRINO_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          DATABRICKS_73_JDBC_URL: ${{ env.DATABRICKS_73_JDBC_URL }}
           DATABRICKS_91_JDBC_URL: ${{ env.DATABRICKS_91_JDBC_URL }}
           DATABRICKS_104_JDBC_URL: ${{ env.DATABRICKS_104_JDBC_URL }}
           DATABRICKS_113_JDBC_URL: ${{ env.DATABRICKS_113_JDBC_URL }}

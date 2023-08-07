@@ -1456,7 +1456,7 @@ public class HiveMetadata
     @Override
     public void setViewComment(ConnectorSession session, SchemaTableName viewName, Optional<String> comment)
     {
-        Table view = getView(viewName);
+        Table view = getTrinoView(viewName);
 
         ConnectorViewDefinition definition = toConnectorViewDefinition(session, viewName, Optional.of(view))
                 .orElseThrow(() -> new ViewNotFoundException(viewName));
@@ -1475,7 +1475,7 @@ public class HiveMetadata
     @Override
     public void setViewColumnComment(ConnectorSession session, SchemaTableName viewName, String columnName, Optional<String> comment)
     {
-        Table view = getView(viewName);
+        Table view = getTrinoView(viewName);
 
         ConnectorViewDefinition definition = toConnectorViewDefinition(session, viewName, Optional.of(view))
                 .orElseThrow(() -> new ViewNotFoundException(viewName));
@@ -1499,11 +1499,12 @@ public class HiveMetadata
         hiveMaterializedViewMetadata.setMaterializedViewColumnComment(session, viewName, columnName, comment);
     }
 
-    private Table getView(SchemaTableName viewName)
+    private Table getTrinoView(SchemaTableName viewName)
     {
         Table view = metastore.getTable(viewName.getSchemaName(), viewName.getTableName())
+                .filter(table -> isHiveOrPrestoView(table) && !isTrinoMaterializedView(table))
                 .orElseThrow(() -> new ViewNotFoundException(viewName));
-        if (translateHiveViews && !isPrestoView(view)) {
+        if (!isPrestoView(view)) {
             throw new HiveViewNotSupportedException(viewName);
         }
         return view;

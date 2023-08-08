@@ -101,4 +101,11 @@ public abstract class ForwardingTrinoFileSystem
     {
         delegate().createDirectory(location);
     }
+
+    @Override
+    public void renameDirectory(Location source, Location target)
+            throws IOException
+    {
+        delegate().renameDirectory(source, target);
+    }
 }

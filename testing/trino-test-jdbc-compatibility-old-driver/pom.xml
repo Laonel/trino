@@ -15,7 +15,7 @@
     <properties>
         <air.main.basedir>${project.parent.basedir}</air.main.basedir>
         <!-- Version needs to be hardcoded for the release plugin to work. It will be updated by the release plugin. -->
-        <dep.presto-jdbc-under-test>423-e-SNAPSHOT</dep.presto-jdbc-under-test>
+        <dep.presto-jdbc-under-test>424-e-SNAPSHOT</dep.presto-jdbc-under-test>
     </properties>
 
     <dependencies>

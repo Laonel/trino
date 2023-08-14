@@ -154,15 +154,15 @@ public class FunctionManager
     {
         CatalogHandle catalogHandle = tableFunctionHandle.getCatalogHandle();
 
-        FunctionProvider provider;
         if (catalogHandle.equals(GlobalSystemConnector.CATALOG_HANDLE)) {
-            provider = globalFunctionCatalog;
+            // GlobalSystemConnector can have its own set of table functions which are not registered in function catalog
+            TableFunctionProcessorProvider processorProvider = globalFunctionCatalog.getTableFunctionProcessorProvider(tableFunctionHandle.getFunctionHandle());
+            if (processorProvider != null) {
+                return processorProvider;
+            }
         }
-        else {
-            provider = functionProviders.getService(catalogHandle);
-            checkArgument(provider != null, "No function provider for catalog: '%s'", catalogHandle);
-        }
-
+        FunctionProvider provider = functionProviders.getService(catalogHandle);
+        checkArgument(provider != null, "No function provider for catalog: '%s'", catalogHandle);
         return provider.getTableFunctionProcessorProvider(tableFunctionHandle.getFunctionHandle());
     }
 

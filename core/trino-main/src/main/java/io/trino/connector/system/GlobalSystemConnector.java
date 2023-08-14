@@ -15,6 +15,7 @@ package io.trino.connector.system;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.inject.Inject;
+import io.trino.metadata.TableFunctionManager;
 import io.trino.operator.table.Sequence.SequenceFunctionHandle;
 import io.trino.spi.connector.CatalogHandle;
 import io.trino.spi.connector.CatalogHandle.CatalogVersion;
@@ -24,13 +25,16 @@ import io.trino.spi.connector.ConnectorSplitManager;
 import io.trino.spi.connector.ConnectorSplitSource;
 import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.SystemTable;
+import io.trino.spi.function.FunctionProvider;
 import io.trino.spi.function.table.ConnectorTableFunction;
 import io.trino.spi.function.table.ConnectorTableFunctionHandle;
+import io.trino.spi.function.table.TableFunctionProcessorProvider;
 import io.trino.spi.procedure.Procedure;
 import io.trino.spi.transaction.IsolationLevel;
 import io.trino.transaction.InternalConnector;
 import io.trino.transaction.TransactionId;
 
+import java.util.Optional;
 import java.util.Set;
 
 import static io.trino.operator.table.Sequence.getSequenceFunctionSplitSource;
@@ -46,13 +50,22 @@ public class GlobalSystemConnector
     private final Set<SystemTable> systemTables;
     private final Set<Procedure> procedures;
     private final Set<ConnectorTableFunction> tableFunctions;
+    private final TableFunctionManager tableFunctionManager;
 
     @Inject
-    public GlobalSystemConnector(Set<SystemTable> systemTables, Set<Procedure> procedures, Set<ConnectorTableFunction> tableFunctions)
+    public GlobalSystemConnector(
+            Set<SystemTable> systemTables,
+            Set<Procedure> procedures,
+            TableFunctionManager tableFunctionManager,
+            Set<ConnectorTableFunction> tableFunctions)
     {
         this.systemTables = ImmutableSet.copyOf(requireNonNull(systemTables, "systemTables is null"));
         this.procedures = ImmutableSet.copyOf(requireNonNull(procedures, "procedures is null"));
-        this.tableFunctions = ImmutableSet.copyOf(requireNonNull(tableFunctions, "tableFunctions is null"));
+        this.tableFunctionManager = requireNonNull(tableFunctionManager, "tableFunctionManager is null");
+        this.tableFunctions = ImmutableSet.<ConnectorTableFunction>builder()
+                .addAll(requireNonNull(tableFunctions, "tableFunctions is null"))
+                .addAll(tableFunctionManager.getTableFunctions())
+                .build();
     }
 
     @Override
@@ -96,9 +109,20 @@ public class GlobalSystemConnector
                 if (functionHandle instanceof SequenceFunctionHandle sequenceFunctionHandle) {
                     return getSequenceFunctionSplitSource(sequenceFunctionHandle);
                 }
-
-                throw new UnsupportedOperationException();
+                return tableFunctionManager.getSplitSource(functionHandle);
             }
         };
+    }
+
+    @Override
+    public Optional<FunctionProvider> getFunctionProvider()
+    {
+        return Optional.of(new FunctionProvider() {
+            @Override
+            public TableFunctionProcessorProvider getTableFunctionProcessorProvider(ConnectorTableFunctionHandle functionHandle)
+            {
+                return tableFunctionManager.getTableFunctionProcessorProvider(functionHandle);
+            }
+        });
     }
 }

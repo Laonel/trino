@@ -125,7 +125,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -144,7 +143,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static com.amazonaws.regions.Regions.US_EAST_1;
 import static com.amazonaws.services.s3.Headers.CRYPTO_KEYWRAP_ALGORITHM;
@@ -177,7 +175,6 @@ import static java.lang.System.arraycopy;
 import static java.net.HttpURLConnection.HTTP_BAD_REQUEST;
 import static java.net.HttpURLConnection.HTTP_FORBIDDEN;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.Files.createDirectories;
 import static java.nio.file.Files.createTempFile;
 import static java.util.Objects.nonNull;
@@ -214,7 +211,6 @@ public class TrinoS3FileSystem
     public static final String S3_MAX_ERROR_RETRIES = "trino.s3.max-error-retries";
     public static final String S3_SSL_ENABLED = "trino.s3.ssl.enabled";
     public static final String S3_PATH_STYLE_ACCESS = "trino.s3.path-style-access";
-    public static final String S3_SUPPORT_LEGACY_CORRUPTED_PATHS = "trino.s3.support-legacy-corrupted-paths";
     public static final String S3_SIGNER_TYPE = "trino.s3.signer-type";
     public static final String S3_SIGNER_CLASS = "trino.s3.signer-class";
     public static final String S3_ENDPOINT = "trino.s3.endpoint";
@@ -275,7 +271,6 @@ public class TrinoS3FileSystem
     private TrinoS3SseType sseType;
     private String sseKmsKeyId;
     private boolean isPathStyleAccess;
-    private boolean supportLegacyCorruptedPaths;
     private long multiPartUploadMinFileSize;
     private long multiPartUploadMinPartSize;
     private TrinoS3AclType s3AclType;
@@ -319,7 +314,6 @@ public class TrinoS3FileSystem
         this.multiPartUploadMinFileSize = conf.getLong(S3_MULTIPART_MIN_FILE_SIZE, defaults.getS3MultipartMinFileSize().toBytes());
         this.multiPartUploadMinPartSize = conf.getLong(S3_MULTIPART_MIN_PART_SIZE, defaults.getS3MultipartMinPartSize().toBytes());
         this.isPathStyleAccess = conf.getBoolean(S3_PATH_STYLE_ACCESS, defaults.isS3PathStyleAccess());
-        this.supportLegacyCorruptedPaths = conf.getBoolean(S3_SUPPORT_LEGACY_CORRUPTED_PATHS, defaults.isSupportLegacyCorruptedPaths());
         this.iamRole = conf.get(S3_IAM_ROLE, defaults.getS3IamRole());
         this.externalId = conf.get(S3_EXTERNAL_ID, defaults.getS3ExternalId());
         this.pinS3ClientToCurrentRegion = conf.getBoolean(S3_PIN_CLIENT_TO_CURRENT_REGION, defaults.isPinS3ClientToCurrentRegion());
@@ -572,7 +566,7 @@ public class TrinoS3FileSystem
     {
         return new FSDataInputStream(
                 new BufferedFSInputStream(
-                        new TrinoS3InputStream(s3, getBucketName(uri), path, supportLegacyCorruptedPaths, requesterPaysEnabled, maxAttempts, maxBackoffTime, maxRetryTime),
+                        new TrinoS3InputStream(s3, getBucketName(uri), path, requesterPaysEnabled, maxAttempts, maxBackoffTime, maxRetryTime),
                         bufferSize));
     }
 
@@ -667,24 +661,7 @@ public class TrinoS3FileSystem
     public boolean delete(Path path, boolean recursive)
             throws IOException
     {
-        PathKeys pathKeys = keysFromPath(path);
-        boolean delete = delete(path, pathKeys.correctKey(), recursive);
-        if (pathKeys.legacyCorruptedKey().isPresent()) {
-            if (recursive) {
-                // recursive delete hasn't been updated to deal with legacy corrupted paths, because such paths weren't observed as directory roots
-                log.warn("Unexpected recursive delete call delete(%s, %s) on what should be a file path: %s", path, recursive, pathKeys);
-            }
-            else {
-                boolean legacyDelete = delete(path, pathKeys.legacyCorruptedKey().get(), false);
-                return delete || legacyDelete;
-            }
-        }
-        return delete;
-    }
-
-    private boolean delete(Path path, String key, boolean recursive)
-            throws IOException
-    {
+        String key = keyFromPath(path);
         if (recursive) {
             DeletePrefixResult deletePrefixResult;
             try {
@@ -703,7 +680,7 @@ public class TrinoS3FileSystem
             deleteObject(key + DIRECTORY_SUFFIX);
         }
         else {
-            Iterator<ListObjectsV2Result> listingsIterator = listObjects(key, OptionalInt.of(2), true);
+            Iterator<ListObjectsV2Result> listingsIterator = listObjects(path, OptionalInt.of(2), true);
             Iterator<String> objectKeysIterator = Iterators.concat(Iterators.transform(listingsIterator, TrinoS3FileSystem::keysFromRecursiveListing));
             if (objectKeysIterator.hasNext()) {
                 String childKey = objectKeysIterator.next();
@@ -807,8 +784,7 @@ public class TrinoS3FileSystem
     private void deletePaths(List<Path> paths)
     {
         List<KeyVersion> keys = paths.stream()
-                .map(this::keysFromPath)
-                .flatMap(PathKeys::stream)
+                .map(TrinoS3FileSystem::keyFromPath)
                 .map(KeyVersion::new)
                 .collect(toImmutableList());
         DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(getBucketName(uri))
@@ -864,11 +840,7 @@ public class TrinoS3FileSystem
 
     private Iterator<ListObjectsV2Result> listObjects(Path path, OptionalInt initialMaxKeys, boolean recursive)
     {
-        return listObjects(keyFromPath(path), initialMaxKeys, recursive);
-    }
-
-    private Iterator<ListObjectsV2Result> listObjects(String key, OptionalInt initialMaxKeys, boolean recursive)
-    {
+        String key = keyFromPath(path);
         if (!key.isEmpty()) {
             key += PATH_SEPARATOR;
         }
@@ -971,9 +943,8 @@ public class TrinoS3FileSystem
             throws IOException
     {
         String bucketName = getBucketName(uri);
-        PathKeys pathKeys = keysFromPath(path);
-        ObjectMetadata s3ObjectMetadata = processKeysWithNullWhenNotFound(pathKeys, key -> getS3ObjectMetadata(bucketName, key));
-        String key = pathKeys.correctKey();
+        String key = keyFromPath(path);
+        ObjectMetadata s3ObjectMetadata = getS3ObjectMetadata(bucketName, key);
         if (s3ObjectMetadata == null && !key.isEmpty()) {
             return getS3ObjectMetadata(bucketName, key + PATH_SEPARATOR);
         }
@@ -1048,69 +1019,6 @@ public class TrinoS3FileSystem
     private static boolean keysEqual(Path p1, Path p2)
     {
         return keyFromPath(p1).equals(keyFromPath(p2));
-    }
-
-    private static <T> T processKeys(PathKeys pathKeys, Callback<T> callback)
-            throws IOException
-    {
-        try {
-            return callback.call(pathKeys.correctKey());
-        }
-        catch (FileNotFoundException notFound) {
-            if (pathKeys.legacyCorruptedKey().isPresent()) {
-                try {
-                    return callback.call(pathKeys.legacyCorruptedKey().get());
-                }
-                catch (IOException | RuntimeException secondException) {
-                    notFound.addSuppressed(secondException);
-                }
-            }
-            throw notFound;
-        }
-    }
-
-    private static <T> T processKeysWithNullWhenNotFound(PathKeys pathKeys, Callback<T> callback)
-            throws IOException
-    {
-        T value = callback.call(pathKeys.correctKey());
-        if (value == null && pathKeys.legacyCorruptedKey().isPresent()) {
-            value = callback.call(pathKeys.legacyCorruptedKey().get());
-        }
-        return value;
-    }
-
-    private PathKeys keysFromPath(Path path)
-    {
-        return keysFromPath(path, supportLegacyCorruptedPaths);
-    }
-
-    @VisibleForTesting
-    static PathKeys keysFromPath(Path path, boolean supportLegacyCorruptedPaths)
-    {
-        String correctKey = keyFromPath(path);
-        Optional<String> legacyCorrupted = legacyCorruptedKeyFromPath(path, correctKey, supportLegacyCorruptedPaths);
-        return new PathKeys(correctKey, legacyCorrupted);
-    }
-
-    private static Optional<String> legacyCorruptedKeyFromPath(Path mangledPath, String correctKey, boolean supportLegacyCorruptedPaths)
-    {
-        if (!supportLegacyCorruptedPaths) {
-            return Optional.empty();
-        }
-
-        String schemeAndBucket = mangledPath.toString().replaceAll("(s3.?://[^/]+)/.*", "$1");
-
-        // Follows from https://github.com/trinodb/trino/blob/46e215294bb01917ddd2bd7ce085a2f2d2cad8a4/lib/trino-hdfs/src/main/java/io/trino/filesystem/hdfs/HadoopPaths.java#L28-L41
-        String path = schemeAndBucket + "/" + correctKey;
-        if (path.equals(mangledPath.toString())) {
-            return Optional.empty();
-        }
-
-        URI uri = URI.create(path);
-        Path hadoopPath2 = new Path(uri + "#" + URLEncoder.encode(uri.getPath(), UTF_8));
-
-        String corruptedKey = keyFromPath(hadoopPath2);
-        return Optional.of(corruptedKey);
     }
 
     public static String keyFromPath(Path path)
@@ -1419,7 +1327,6 @@ public class TrinoS3FileSystem
         private final AmazonS3 s3;
         private final String bucket;
         private final Path path;
-        private final boolean supportLegacyCorruptedPaths;
         private final boolean requesterPaysEnabled;
         private final int maxAttempts;
         private final Duration maxBackoffTime;
@@ -1431,12 +1338,11 @@ public class TrinoS3FileSystem
         private long streamPosition;
         private long nextReadPosition;
 
-        public TrinoS3InputStream(AmazonS3 s3, String bucket, Path path, boolean supportLegacyCorruptedPaths, boolean requesterPaysEnabled, int maxAttempts, Duration maxBackoffTime, Duration maxRetryTime)
+        public TrinoS3InputStream(AmazonS3 s3, String bucket, Path path, boolean requesterPaysEnabled, int maxAttempts, Duration maxBackoffTime, Duration maxRetryTime)
         {
             this.s3 = requireNonNull(s3, "s3 is null");
             this.bucket = requireNonNull(bucket, "bucket is null");
             this.path = requireNonNull(path, "path is null");
-            this.supportLegacyCorruptedPaths = supportLegacyCorruptedPaths;
             this.requesterPaysEnabled = requesterPaysEnabled;
 
             checkArgument(maxAttempts >= 0, "maxAttempts cannot be negative");
@@ -1456,12 +1362,6 @@ public class TrinoS3FileSystem
         public int read(long position, byte[] buffer, int offset, int length)
                 throws IOException
         {
-            return processKeys(keysFromPath(path, supportLegacyCorruptedPaths), key -> read(key, position, buffer, offset, length));
-        }
-
-        private int read(String key, long position, byte[] buffer, int offset, int length)
-                throws IOException
-        {
             checkClosed();
             if (position < 0) {
                 throw new EOFException(NEGATIVE_SEEK);
@@ -1479,6 +1379,7 @@ public class TrinoS3FileSystem
                         .onRetry(STATS::newGetObjectRetry)
                         .run("getS3Object", () -> {
                             InputStream stream;
+                            String key = keyFromPath(path);
                             try {
                                 GetObjectRequest request = new GetObjectRequest(bucket, key)
                                         .withRange(position, (position + length) - 1)
@@ -1647,12 +1548,6 @@ public class TrinoS3FileSystem
         private InputStream openStream(Path path, long start)
                 throws IOException
         {
-            return processKeys(keysFromPath(path, supportLegacyCorruptedPaths), key -> openStream(key, start));
-        }
-
-        private InputStream openStream(String key, long start)
-                throws IOException
-        {
             try {
                 return retry()
                         .maxAttempts(maxAttempts)
@@ -1660,6 +1555,7 @@ public class TrinoS3FileSystem
                         .stopOn(InterruptedException.class, UnrecoverableS3OperationException.class, AbortedException.class, FileNotFoundException.class)
                         .onRetry(STATS::newGetObjectRetry)
                         .run("getS3Object", () -> {
+                            String key = keyFromPath(path);
                             try {
                                 GetObjectRequest request = new GetObjectRequest(bucket, key)
                                         .withRange(start)
@@ -2223,29 +2119,5 @@ public class TrinoS3FileSystem
                 delegate.afterError(request, response, e);
             }
         }
-    }
-
-    @VisibleForTesting
-    record PathKeys(String correctKey, Optional<String> legacyCorruptedKey)
-    {
-        PathKeys
-        {
-            requireNonNull(correctKey, "correctKey is null");
-            requireNonNull(legacyCorruptedKey, "legacyCorruptedKey is null");
-        }
-
-        Stream<String> stream()
-        {
-            if (legacyCorruptedKey.isEmpty()) {
-                return Stream.of(correctKey);
-            }
-            return Stream.of(correctKey, legacyCorruptedKey.get());
-        }
-    }
-
-    private interface Callback<T>
-    {
-        T call(String key)
-                throws IOException;
     }
 }

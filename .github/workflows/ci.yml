@@ -1054,9 +1054,6 @@ jobs:
             # this suite is not meant to be run with different configs
             - config: default
               suite: suite-ignite
-            # this suite is not meant to be run with different configs
-            - config: default
-              suite: suite-s3-compatibility
           EOF
       - name: Build PT matrix (all)
         if: |

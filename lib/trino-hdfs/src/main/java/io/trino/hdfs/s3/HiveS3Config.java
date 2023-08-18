@@ -47,7 +47,6 @@ public class HiveS3Config
     private TrinoS3SignerType s3SignerType;
     private String s3SignerClass;
     private boolean s3PathStyleAccess;
-    private boolean supportLegacyCorruptedPaths;
     private String s3IamRole;
     private String s3ExternalId;
     private boolean s3SslEnabled = true;
@@ -181,19 +180,6 @@ public class HiveS3Config
     public HiveS3Config setS3PathStyleAccess(boolean s3PathStyleAccess)
     {
         this.s3PathStyleAccess = s3PathStyleAccess;
-        return this;
-    }
-
-    public boolean isSupportLegacyCorruptedPaths()
-    {
-        return supportLegacyCorruptedPaths;
-    }
-
-    @Config("hive.s3.support-legacy-corrupted-paths")
-    @ConfigDescription("Enable backward compatibility layer for reading corrupted S3 paths containing URL encoded fragment part")
-    public HiveS3Config setSupportLegacyCorruptedPaths(boolean supportLegacyCorruptedPaths)
-    {
-        this.supportLegacyCorruptedPaths = supportLegacyCorruptedPaths;
         return this;
     }
 

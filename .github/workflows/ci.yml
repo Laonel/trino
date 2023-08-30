@@ -952,6 +952,7 @@ jobs:
             - suite-delta-lake-databricks104
             - suite-delta-lake-databricks113
             - suite-delta-lake-databricks122
+            - suite-delta-lake-databricks133
             - suite-gcs
             - suite-clients
             - suite-functions
@@ -982,6 +983,9 @@ jobs:
               config: hdp3
 
             - suite: suite-delta-lake-databricks122
+              config: hdp3
+
+            - suite: suite-delta-lake-databricks133
               config: hdp3
 
           ignore exclusion if:
@@ -1079,6 +1083,7 @@ jobs:
           DATABRICKS_104_JDBC_URL:
           DATABRICKS_113_JDBC_URL:
           DATABRICKS_122_JDBC_URL:
+          DATABRICKS_133_JDBC_URL:
           DATABRICKS_LOGIN:
           DATABRICKS_TOKEN:
           GCP_CREDENTIALS_KEY:
@@ -1147,6 +1152,7 @@ jobs:
           DATABRICKS_104_JDBC_URL: ${{ env.DATABRICKS_104_JDBC_URL }}
           DATABRICKS_113_JDBC_URL: ${{ env.DATABRICKS_113_JDBC_URL }}
           DATABRICKS_122_JDBC_URL: ${{ env.DATABRICKS_122_JDBC_URL }}
+          DATABRICKS_133_JDBC_URL: ${{ env.DATABRICKS_133_JDBC_URL }}
           DATABRICKS_LOGIN: token
           DATABRICKS_TOKEN: ${{ env.DATABRICKS_TEST_TOKEN }}
           GCP_CREDENTIALS_KEY: ${{ env.GCP_CREDENTIALS_KEY }}

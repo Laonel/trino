@@ -639,15 +639,6 @@ public interface ConnectorMetadata
     }
 
     /**
-     * Coerces the input type to the effective Trino type supported by the connector
-     * Return the effective {@link io.trino.spi.type.Type} that is supported by the connector for the given type, otherwise return {@link Optional#empty()}.
-     */
-    default Optional<Type> coerceNewTableColumn(ConnectorSession session, Type type)
-    {
-        return Optional.empty();
-    }
-
-    /**
      * Get the physical layout for inserting into an existing table.
      */
     default Optional<ConnectorTableLayout> getInsertLayout(ConnectorSession session, ConnectorTableHandle tableHandle)

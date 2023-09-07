@@ -194,7 +194,7 @@ public class CreateTableTask
 
                 columns.put(name.getValue().toLowerCase(ENGLISH), ColumnMetadata.builder()
                         .setName(name.getValue().toLowerCase(ENGLISH))
-                        .setType(coerceNewTableColumn(session, catalogHandle, type))
+                        .setType(type)
                         .setNullable(column.isNullable())
                         .setComment(column.getComment())
                         .setProperties(columnProperties)
@@ -263,9 +263,7 @@ public class CreateTableTask
                             if (columns.containsKey(column.getName().toLowerCase(Locale.ENGLISH))) {
                                 throw semanticException(DUPLICATE_COLUMN_NAME, element, "Column name '%s' specified more than once", column.getName());
                             }
-                            ColumnMetadata.Builder columnBuilder = ColumnMetadata.builderFrom(column);
-                            columnBuilder.setType(coerceNewTableColumn(session, catalogHandle, column.getType()));
-                            columns.put(column.getName().toLowerCase(Locale.ENGLISH), columnBuilder.build());
+                            columns.put(column.getName().toLowerCase(Locale.ENGLISH), column);
                         });
             }
             else {
@@ -312,13 +310,6 @@ public class CreateTableTask
                         .map(column -> new OutputColumn(new Column(column.getName(), column.getType().toString()), ImmutableSet.of()))
                         .collect(toImmutableList()))));
         return immediateVoidFuture();
-    }
-
-    private Type coerceNewTableColumn(Session session, CatalogHandle catalogHandle, Type type)
-    {
-        return plannerContext.getMetadata()
-                .coerceNewTableColumn(session, catalogHandle, type)
-                .orElse(type);
     }
 
     private static Map<String, Object> combineProperties(Set<String> specifiedPropertyKeys, Map<String, Object> defaultProperties, Map<String, Object> inheritedProperties)

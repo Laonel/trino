@@ -302,11 +302,6 @@ public interface Metadata
     Optional<TableLayout> getNewTableLayout(Session session, String catalogName, ConnectorTableMetadata tableMetadata);
 
     /**
-     * Coerces the input type to the effective Trino type supported by the connector
-     */
-    Optional<Type> coerceNewTableColumn(Session session, CatalogHandle catalogHandle, Type type);
-
-    /**
      * Begin the atomic creation of a table with data.
      */
     OutputTableHandle beginCreateTable(Session session, String catalogName, ConnectorTableMetadata tableMetadata, Optional<TableLayout> layout);

@@ -383,12 +383,6 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public Optional<Type> coerceNewTableColumn(Session session, CatalogHandle catalogHandle, Type type)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public OutputTableHandle beginCreateTable(Session session, String catalogName, ConnectorTableMetadata tableMetadata, Optional<TableLayout> layout)
     {
         throw new UnsupportedOperationException();

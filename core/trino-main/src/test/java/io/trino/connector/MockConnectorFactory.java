@@ -64,7 +64,6 @@ import io.trino.spi.security.RoleGrant;
 import io.trino.spi.security.ViewExpression;
 import io.trino.spi.session.PropertyMetadata;
 import io.trino.spi.statistics.TableStatistics;
-import io.trino.spi.type.Type;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -117,7 +116,6 @@ public class MockConnectorFactory
     private final BiFunction<ConnectorSession, SchemaTableName, Optional<CatalogSchemaTableName>> redirectTable;
     private final BiFunction<ConnectorSession, SchemaTableName, Optional<ConnectorTableLayout>> getInsertLayout;
     private final BiFunction<ConnectorSession, ConnectorTableMetadata, Optional<ConnectorTableLayout>> getNewTableLayout;
-    private final BiFunction<ConnectorSession, Type, Optional<Type>> coerceNewTableColumn;
     private final BiFunction<ConnectorSession, ConnectorTableHandle, ConnectorTableProperties> getTableProperties;
     private final BiFunction<ConnectorSession, SchemaTablePrefix, List<GrantInfo>> listTablePrivileges;
     private final Supplier<Iterable<EventListener>> eventListeners;
@@ -170,7 +168,6 @@ public class MockConnectorFactory
             BiFunction<ConnectorSession, SchemaTableName, Optional<CatalogSchemaTableName>> redirectTable,
             BiFunction<ConnectorSession, SchemaTableName, Optional<ConnectorTableLayout>> getInsertLayout,
             BiFunction<ConnectorSession, ConnectorTableMetadata, Optional<ConnectorTableLayout>> getNewTableLayout,
-            BiFunction<ConnectorSession, Type, Optional<Type>> coerceNewTableFunction,
             BiFunction<ConnectorSession, ConnectorTableHandle, ConnectorTableProperties> getTableProperties,
             BiFunction<ConnectorSession, SchemaTablePrefix, List<GrantInfo>> listTablePrivileges,
             Supplier<Iterable<EventListener>> eventListeners,
@@ -219,7 +216,6 @@ public class MockConnectorFactory
         this.redirectTable = requireNonNull(redirectTable, "redirectTable is null");
         this.getInsertLayout = requireNonNull(getInsertLayout, "getInsertLayout is null");
         this.getNewTableLayout = requireNonNull(getNewTableLayout, "getNewTableLayout is null");
-        this.coerceNewTableColumn = requireNonNull(coerceNewTableFunction, "coerceNewTableColumn is null");
         this.getTableProperties = requireNonNull(getTableProperties, "getTableProperties is null");
         this.listTablePrivileges = requireNonNull(listTablePrivileges, "listTablePrivileges is null");
         this.eventListeners = requireNonNull(eventListeners, "eventListeners is null");
@@ -278,7 +274,6 @@ public class MockConnectorFactory
                 redirectTable,
                 getInsertLayout,
                 getNewTableLayout,
-                coerceNewTableColumn,
                 getTableProperties,
                 listTablePrivileges,
                 eventListeners,
@@ -418,7 +413,6 @@ public class MockConnectorFactory
         private ApplyJoin applyJoin = (session, joinType, left, right, joinConditions, leftAssignments, rightAssignments) -> Optional.empty();
         private BiFunction<ConnectorSession, SchemaTableName, Optional<ConnectorTableLayout>> getInsertLayout = defaultGetInsertLayout();
         private BiFunction<ConnectorSession, ConnectorTableMetadata, Optional<ConnectorTableLayout>> getNewTableLayout = defaultGetNewTableLayout();
-        private BiFunction<ConnectorSession, Type, Optional<Type>> coerceNewTableColumn = (session, type) -> Optional.empty();
         private BiFunction<ConnectorSession, ConnectorTableHandle, ConnectorTableProperties> getTableProperties = defaultGetTableProperties();
         private BiFunction<ConnectorSession, SchemaTablePrefix, List<GrantInfo>> listTablePrivileges = defaultListTablePrivileges();
         private Supplier<Iterable<EventListener>> eventListeners = ImmutableList::of;
@@ -618,12 +612,6 @@ public class MockConnectorFactory
             return this;
         }
 
-        public Builder withCoerceNewTableColumn(BiFunction<ConnectorSession, Type, Optional<Type>> coerceNewTableColumn)
-        {
-            this.coerceNewTableColumn = requireNonNull(coerceNewTableColumn, "coerceNewTableColumn is null");
-            return this;
-        }
-
         public Builder withGetLayoutForTableExecute(BiFunction<ConnectorSession, ConnectorTableExecuteHandle, Optional<ConnectorTableLayout>> getLayoutForTableExecute)
         {
             this.getLayoutForTableExecute = requireNonNull(getLayoutForTableExecute, "getLayoutForTableExecute is null");
@@ -817,7 +805,6 @@ public class MockConnectorFactory
                     redirectTable,
                     getInsertLayout,
                     getNewTableLayout,
-                    coerceNewTableColumn,
                     getTableProperties,
                     listTablePrivileges,
                     eventListeners,

@@ -125,7 +125,6 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Verify.verify;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableMap.toImmutableMap;
-import static com.google.common.collect.Streams.forEachPair;
 import static com.google.common.collect.Streams.zip;
 import static io.trino.SystemSessionProperties.getMaxWriterTaskCount;
 import static io.trino.SystemSessionProperties.getRetryPolicy;
@@ -454,50 +453,15 @@ public class LogicalPlanner
 
         Optional<TableLayout> newTableLayout = create.getLayout();
 
-        List<Symbol> visibleFieldMappings = visibleFields(plan);
+        List<String> columnNames = tableMetadata.getColumns().stream()
+                .filter(column -> !column.isHidden()) // todo this filter is redundant
+                .map(ColumnMetadata::getName)
+                .collect(toImmutableList());
 
         String catalogName = destination.getCatalogName();
         CatalogHandle catalogHandle = metadata.getCatalogHandle(session, catalogName)
                 .orElseThrow(() -> semanticException(CATALOG_NOT_FOUND, query, "Destination catalog '%s' does not exist", catalogName));
-
-        Assignments.Builder assignmentsBuilder = Assignments.builder();
-        ImmutableList.Builder<ColumnMetadata> finalColumnsBuilder = ImmutableList.builder();
-
-        checkState(tableMetadata.getColumns().size() == visibleFieldMappings.size(), "Table and visible field count doesn't match");
-
-        forEachPair(tableMetadata.getColumns().stream(), visibleFieldMappings.stream(), (column, fieldMapping) -> {
-            Expression expression;
-            Type tableType = column.getType();
-            Type queryType = symbolAllocator.getTypes().get(fieldMapping);
-            if (typeCoercion.isTypeOnlyCoercion(queryType, tableType)) {
-                expression = fieldMapping.toSymbolReference();
-            }
-            else {
-                expression = noTruncationCast(fieldMapping.toSymbolReference(), queryType, tableType);
-            }
-            Symbol output = symbolAllocator.newSymbol(column.getName(), column.getType());
-            assignmentsBuilder.put(output, expression);
-            finalColumnsBuilder.add(column);
-        });
-
-        List<ColumnMetadata> finalColumns = finalColumnsBuilder.build();
-        Assignments assignments = assignmentsBuilder.build();
-
-        checkState(assignments.size() == finalColumns.size(), "Assignment and column count must match");
-        List<Field> fields = finalColumns.stream()
-                .map(column -> Field.newUnqualified(column.getName(), column.getType()))
-                .collect(toImmutableList());
-
-        ProjectNode projectNode = new ProjectNode(idAllocator.getNextId(), plan.getRoot(), assignments);
-        Scope scope = Scope.builder().withRelationType(RelationId.anonymous(), new RelationType(fields)).build();
-        plan = new RelationPlan(projectNode, scope, projectNode.getOutputSymbols(), Optional.empty());
-
-        List<String> columnNames = finalColumns.stream()
-                .map(ColumnMetadata::getName)
-                .collect(toImmutableList());
-
         TableStatisticsMetadata statisticsMetadata = metadata.getStatisticsCollectionMetadataForWrite(session, catalogHandle, tableMetadata);
-
         return createTableWriterPlan(
                 analysis,
                 plan.getRoot(),

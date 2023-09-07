@@ -546,15 +546,6 @@ public class TracingConnectorMetadata
     }
 
     @Override
-    public Optional<Type> coerceNewTableColumn(ConnectorSession session, Type type)
-    {
-        Span span = startSpan("coerceNewTableColumn");
-        try (var ignored = scopedSpan(span)) {
-            return delegate.coerceNewTableColumn(session, type);
-        }
-    }
-
-    @Override
     public Optional<ConnectorTableLayout> getInsertLayout(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         Span span = startSpan("getInsertLayout", tableHandle);

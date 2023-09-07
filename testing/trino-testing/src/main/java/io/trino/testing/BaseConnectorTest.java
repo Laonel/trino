@@ -3244,12 +3244,7 @@ public abstract class BaseConnectorTest
 
     protected String getColumnType(String tableName, String columnName)
     {
-        return getColumnType(getSession(), tableName, columnName);
-    }
-
-    protected String getColumnType(Session session, String tableName, String columnName)
-    {
-        return (String) computeScalar(session, format("SELECT data_type FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA AND table_name = '%s' AND column_name = '%s'",
+        return (String) computeScalar(format("SELECT data_type FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA AND table_name = '%s' AND column_name = '%s'",
                 tableName,
                 columnName));
     }

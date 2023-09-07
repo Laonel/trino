@@ -313,7 +313,6 @@ import static io.trino.spi.connector.RowChangeParadigm.DELETE_ROW_AND_INSERT_ROW
 import static io.trino.spi.predicate.TupleDomain.withColumnDomains;
 import static io.trino.spi.statistics.TableStatisticType.ROW_COUNT;
 import static io.trino.spi.type.BigintType.BIGINT;
-import static io.trino.spi.type.TimestampType.createTimestampType;
 import static io.trino.spi.type.TypeUtils.isFloatingPointNaN;
 import static io.trino.spi.type.VarcharType.createUnboundedVarcharType;
 import static java.lang.Boolean.parseBoolean;
@@ -3426,15 +3425,6 @@ public class HiveMetadata
                         .addAll(partitionedBy)
                         .build(),
                 multipleWritersPerPartitionSupported));
-    }
-
-    @Override
-    public Optional<Type> coerceNewTableColumn(ConnectorSession session, Type type)
-    {
-        if (type instanceof TimestampType) {
-            return Optional.of(createTimestampType(getTimestampPrecision(session).getPrecision()));
-        }
-        return Optional.empty();
     }
 
     @Override

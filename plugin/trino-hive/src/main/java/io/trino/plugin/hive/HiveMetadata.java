@@ -124,7 +124,6 @@ import io.trino.spi.type.RowType;
 import io.trino.spi.type.TimestampType;
 import io.trino.spi.type.Type;
 import io.trino.spi.type.TypeManager;
-import io.trino.spi.type.VarcharType;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaParseException;
 import org.apache.hadoop.fs.Path;
@@ -3434,11 +3433,6 @@ public class HiveMetadata
     {
         if (type instanceof TimestampType) {
             return Optional.of(createTimestampType(getTimestampPrecision(session).getPrecision()));
-        }
-        if (type instanceof VarcharType varcharType) {
-            if (varcharType.getLength().isPresent() && varcharType.getLength().get().equals(0)) {
-                return Optional.of(VarcharType.createVarcharType(1));
-            }
         }
         return Optional.empty();
     }

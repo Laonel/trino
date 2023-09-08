@@ -16,6 +16,7 @@ package io.trino.filesystem;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public abstract class ForwardingTrinoFileSystem
@@ -107,5 +108,12 @@ public abstract class ForwardingTrinoFileSystem
             throws IOException
     {
         delegate().renameDirectory(source, target);
+    }
+
+    @Override
+    public Set<Location> listDirectories(Location location)
+            throws IOException
+    {
+        return delegate().listDirectories(location);
     }
 }

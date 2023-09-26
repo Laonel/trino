@@ -34,7 +34,6 @@ import java.util.Set;
 import static io.trino.execution.ParameterExtractor.getParameterCount;
 import static io.trino.spi.StandardErrorCode.INVALID_PARAMETER_USAGE;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
-import static io.trino.sql.ParsingUtil.createParsingOptions;
 import static io.trino.sql.analyzer.ConstantExpressionVerifier.verifyExpressionIsConstant;
 import static io.trino.sql.analyzer.SemanticExceptions.semanticException;
 import static io.trino.util.StatementUtils.getQueryType;
@@ -56,11 +55,10 @@ public class QueryPreparer
     public PreparedQuery prepareQuery(Session session, String query)
             throws ParsingException, TrinoException
     {
-        String decoratedQuery = query;
         for (QueryDecorator queryDecorator : queryDecorators) {
-            decoratedQuery = queryDecorator.decorateQuery(session, decoratedQuery);
+            query = queryDecorator.decorateQuery(session, query);
         }
-        Statement wrappedStatement = sqlParser.createStatement(decoratedQuery, createParsingOptions(session));
+        Statement wrappedStatement = sqlParser.createStatement(query);
         return prepareQuery(session, wrappedStatement);
     }
 
@@ -71,13 +69,12 @@ public class QueryPreparer
         Optional<String> prepareSql = Optional.empty();
         if (statement instanceof Execute executeStatement) {
             prepareSql = Optional.of(session.getPreparedStatementFromExecute(executeStatement));
-            statement = sqlParser.createStatement(prepareSql.get(), createParsingOptions(session));
+            statement = sqlParser.createStatement(prepareSql.get());
         }
         else if (statement instanceof ExecuteImmediate executeImmediateStatement) {
             statement = sqlParser.createStatement(
                     executeImmediateStatement.getStatement().getValue(),
-                    executeImmediateStatement.getStatement().getLocation().orElseThrow(() -> new ParsingException("Missing location for embedded statement")),
-                    createParsingOptions(session));
+                    executeImmediateStatement.getStatement().getLocation().orElseThrow(() -> new ParsingException("Missing location for embedded statement")));
         }
         else if (statement instanceof ExplainAnalyze explainAnalyzeStatement) {
             Statement innerStatement = explainAnalyzeStatement.getStatement();

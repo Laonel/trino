@@ -726,8 +726,8 @@ jobs:
       - name: Cleanup ephemeral S3 buckets
         env:
           AWS_REGION: ${{ vars.TRINO_AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.TRINO_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.TRINO_AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.ENG_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.ENG_AWS_SECRET_ACCESS_KEY }}
         # Cancelled workflows may not have cleaned up the ephemeral bucket
         if: always()
         run: .github/bin/s3/delete-s3-bucket.sh || true

@@ -3419,7 +3419,7 @@ public class HiveMetadata
     }
 
     @Override
-    public Optional<Type> getSupportedType(ConnectorSession session, Type type)
+    public Optional<Type> getSupportedType(ConnectorSession session, Map<String, Object> tableProperties, Type type)
     {
         if (type instanceof TimestampType) {
             return Optional.of(createTimestampType(getTimestampPrecision(session).getPrecision()));

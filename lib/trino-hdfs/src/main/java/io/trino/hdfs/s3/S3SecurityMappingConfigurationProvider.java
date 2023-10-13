@@ -33,6 +33,7 @@ import static com.google.common.base.Verify.verify;
 import static io.trino.hdfs.DynamicConfigurationProvider.setCacheKey;
 import static io.trino.hdfs.s3.TrinoS3FileSystem.S3_ACCESS_KEY;
 import static io.trino.hdfs.s3.TrinoS3FileSystem.S3_ENDPOINT;
+import static io.trino.hdfs.s3.TrinoS3FileSystem.S3_EXTERNAL_ID;
 import static io.trino.hdfs.s3.TrinoS3FileSystem.S3_IAM_ROLE;
 import static io.trino.hdfs.s3.TrinoS3FileSystem.S3_KMS_KEY_ID;
 import static io.trino.hdfs.s3.TrinoS3FileSystem.S3_ROLE_SESSION_NAME;
@@ -108,6 +109,11 @@ public class S3SecurityMappingConfigurationProvider
         selectRole(mapping, context).ifPresent(role -> {
             configuration.set(S3_IAM_ROLE, role);
             hasher.putString(role, UTF_8);
+        });
+
+        mapping.getExternalId().ifPresent(externalId -> {
+            configuration.set(S3_EXTERNAL_ID, externalId);
+            hasher.putString(externalId, UTF_8);
         });
 
         selectKmsKeyId(mapping, context).ifPresent(key -> {

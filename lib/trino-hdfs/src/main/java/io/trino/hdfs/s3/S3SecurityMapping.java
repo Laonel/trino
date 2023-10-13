@@ -40,6 +40,7 @@ public class S3SecurityMapping
     private final Predicate<URI> prefix;
     private final Optional<String> iamRole;
     private final Set<String> allowedIamRoles;
+    private final Optional<String> externalId;
     private final Optional<String> kmsKeyId;
     private final Set<String> allowedKmsKeyIds;
     private final Optional<BasicAWSCredentials> credentials;
@@ -55,6 +56,7 @@ public class S3SecurityMapping
             @JsonProperty("iamRole") Optional<String> iamRole,
             @JsonProperty("roleSessionName") Optional<String> roleSessionName,
             @JsonProperty("allowedIamRoles") Optional<List<String>> allowedIamRoles,
+            @JsonProperty("externalId") Optional<String> externalId,
             @JsonProperty("kmsKeyId") Optional<String> kmsKeyId,
             @JsonProperty("allowedKmsKeyIds") Optional<List<String>> allowedKmsKeyIds,
             @JsonProperty("accessKey") Optional<String> accessKey,
@@ -78,6 +80,8 @@ public class S3SecurityMapping
         checkArgument(!(iamRole.isEmpty() && roleSessionName.isPresent()), "iamRole must be provided when roleSessionName is provided");
 
         this.allowedIamRoles = ImmutableSet.copyOf(allowedIamRoles.orElse(ImmutableList.of()));
+
+        this.externalId = requireNonNull(externalId, "externalId is null");
 
         this.kmsKeyId = requireNonNull(kmsKeyId, "kmsKeyId is null");
 
@@ -112,6 +116,11 @@ public class S3SecurityMapping
     public Set<String> getAllowedIamRoles()
     {
         return allowedIamRoles;
+    }
+
+    public Optional<String> getExternalId()
+    {
+        return externalId;
     }
 
     public Optional<String> getKmsKeyId()

@@ -178,6 +178,9 @@ The security mapping must provide one or more configuration settings:
   `${USER}`, then the `${USER}` portion of the string will be replaced with the
   current session's username. If `roleSessionName` is not specified, it defaults
   to `trino-session`.
+- `externalId`: External ID for the IAM role trust policy. This can only be
+  used when `iamRole` is specified. This overrides any globally configured
+  S3 external ID.
 - `allowedIamRoles`: IAM roles that are allowed to be specified as an extra
   credential. This is useful because a particular AWS account may have permissions
   to use many roles, but a specific user should only be allowed to use a subset

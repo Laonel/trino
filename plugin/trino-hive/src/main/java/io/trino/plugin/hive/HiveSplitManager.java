@@ -203,7 +203,7 @@ public class HiveSplitManager
                     "Cannot read from a table %s that was modified within transaction, you need to commit the transaction first",
                     tableName));
         }
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName(), Optional.of(session.getIdentity()))
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         // verify table is not marked as non-readable
@@ -225,7 +225,7 @@ public class HiveSplitManager
                         bucketing.getTableBucketCount()));
 
         // get partitions
-        Iterator<HivePartition> partitions = partitionManager.getPartitions(metastore, hiveTable);
+        Iterator<HivePartition> partitions = partitionManager.getPartitions(metastore, hiveTable, Optional.of(session.getIdentity()));
 
         // short circuit if we don't have any partitions
         if (!partitions.hasNext()) {

@@ -38,6 +38,7 @@ import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -88,9 +89,9 @@ public class BridgingHiveMetastore
     }
 
     @Override
-    public Optional<Table> getTable(String databaseName, String tableName)
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
-        return delegate.getTable(databaseName, tableName).map(table -> {
+        return delegate.getTable(databaseName, tableName, identity).map(table -> {
             if (isAvroTableWithSchemaSet(table)) {
                 return fromMetastoreApiTable(table, delegate.getFields(databaseName, tableName).orElseThrow());
             }
@@ -335,6 +336,17 @@ public class BridgingHiveMetastore
     public Optional<Partition> getPartition(Table table, List<String> partitionValues)
     {
         return delegate.getPartition(table.getDatabaseName(), table.getTableName(), partitionValues).map(partition -> fromMetastoreApiPartition(table, partition));
+    }
+
+    @Override
+    public Optional<List<String>> getPartitionNamesByFilter(
+            String databaseName,
+            String tableName,
+            Optional<ConnectorIdentity> identity,
+            List<String> columnNames,
+            TupleDomain<String> partitionKeysFilter)
+    {
+        return delegate.getPartitionNamesByFilter(databaseName, tableName, identity, columnNames, partitionKeysFilter);
     }
 
     @Override

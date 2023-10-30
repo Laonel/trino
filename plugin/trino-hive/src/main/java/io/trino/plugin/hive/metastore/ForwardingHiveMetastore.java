@@ -23,6 +23,7 @@ import io.trino.plugin.hive.acid.AcidTransaction;
 import io.trino.plugin.hive.metastore.HivePrivilegeInfo.HivePrivilege;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -61,6 +62,12 @@ public abstract class ForwardingHiveMetastore
     public Optional<Table> getTable(String databaseName, String tableName)
     {
         return delegate.getTable(databaseName, tableName);
+    }
+
+    @Override
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> connectorIdentity)
+    {
+        return delegate.getTable(databaseName, tableName, connectorIdentity);
     }
 
     @Override
@@ -249,6 +256,17 @@ public abstract class ForwardingHiveMetastore
             TupleDomain<String> partitionKeysFilter)
     {
         return delegate.getPartitionNamesByFilter(databaseName, tableName, columnNames, partitionKeysFilter);
+    }
+
+    @Override
+    public Optional<List<String>> getPartitionNamesByFilter(
+            String databaseName,
+            String tableName,
+            Optional<ConnectorIdentity> identity,
+            List<String> columnNames,
+            TupleDomain<String> partitionKeysFilter)
+    {
+        return delegate.getPartitionNamesByFilter(databaseName, tableName, identity, columnNames, partitionKeysFilter);
     }
 
     @Override

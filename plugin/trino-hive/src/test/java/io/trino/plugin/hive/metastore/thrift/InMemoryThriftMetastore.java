@@ -37,6 +37,7 @@ import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 import org.apache.hadoop.fs.Path;
@@ -388,7 +389,7 @@ public class InMemoryThriftMetastore
     }
 
     @Override
-    public synchronized Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
+    public synchronized Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
     {
         Optional<List<String>> parts = partitionKeyFilterToStringList(columnNames, partitionKeysFilter, assumeCanonicalPartitionKeys);
 
@@ -436,7 +437,7 @@ public class InMemoryThriftMetastore
     }
 
     @Override
-    public synchronized Optional<Table> getTable(String databaseName, String tableName)
+    public synchronized Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
         SchemaTableName schemaTableName = new SchemaTableName(databaseName, tableName);
         return Optional.ofNullable(relations.get(schemaTableName));

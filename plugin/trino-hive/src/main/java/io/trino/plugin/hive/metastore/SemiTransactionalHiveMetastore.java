@@ -53,6 +53,7 @@ import io.trino.spi.connector.SchemaNotFoundException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.PrincipalType;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
@@ -254,12 +255,12 @@ public class SemiTransactionalHiveMetastore
         return delegate.getAllTables();
     }
 
-    public synchronized Optional<Table> getTable(String databaseName, String tableName)
+    public synchronized Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
         checkReadable();
         Action<TableAndMore> tableAction = tableActions.get(new SchemaTableName(databaseName, tableName));
         if (tableAction == null) {
-            return delegate.getTable(databaseName, tableName);
+            return delegate.getTable(databaseName, tableName, identity);
         }
         switch (tableAction.getType()) {
             case ADD:
@@ -274,6 +275,11 @@ public class SemiTransactionalHiveMetastore
                 break;
         }
         throw new IllegalStateException("Unknown action type: " + tableAction.getType());
+    }
+
+    public synchronized Optional<Table> getTable(String databaseName, String tableName)
+    {
+        return getTable(databaseName, tableName, Optional.empty());
     }
 
     public synchronized boolean isReadableWithinTransaction(String databaseName, String tableName)
@@ -831,16 +837,17 @@ public class SemiTransactionalHiveMetastore
                 .map(Column::getName)
                 .collect(toImmutableList());
 
-        return doGetPartitionNames(databaseName, tableName, columnNames, TupleDomain.all());
+        return doGetPartitionNames(databaseName, tableName, columnNames, TupleDomain.all(), Optional.empty());
     }
 
     public synchronized Optional<List<String>> getPartitionNamesByFilter(
             String databaseName,
             String tableName,
             List<String> columnNames,
-            TupleDomain<String> partitionKeysFilter)
+            TupleDomain<String> partitionKeysFilter,
+            Optional<ConnectorIdentity> identity)
     {
-        return doGetPartitionNames(databaseName, tableName, columnNames, partitionKeysFilter);
+        return doGetPartitionNames(databaseName, tableName, columnNames, partitionKeysFilter, identity);
     }
 
     @GuardedBy("this")
@@ -848,7 +855,8 @@ public class SemiTransactionalHiveMetastore
             String databaseName,
             String tableName,
             List<String> columnNames,
-            TupleDomain<String> partitionKeysFilter)
+            TupleDomain<String> partitionKeysFilter,
+            Optional<ConnectorIdentity> identity)
     {
         checkHoldsLock();
 
@@ -858,7 +866,7 @@ public class SemiTransactionalHiveMetastore
             return Optional.of(ImmutableList.of());
         }
 
-        Optional<Table> table = getTable(databaseName, tableName);
+        Optional<Table> table = getTable(databaseName, tableName, identity);
         if (table.isEmpty()) {
             return Optional.empty();
         }
@@ -869,7 +877,7 @@ public class SemiTransactionalHiveMetastore
                 partitionNames = ImmutableList.of();
                 break;
             case PRE_EXISTING_TABLE:
-                partitionNames = delegate.getPartitionNamesByFilter(databaseName, tableName, columnNames, partitionKeysFilter)
+                partitionNames = delegate.getPartitionNamesByFilter(databaseName, tableName, identity, columnNames, partitionKeysFilter)
                         .orElseThrow(() -> new TrinoException(TRANSACTION_CONFLICT, format("Table '%s.%s' was dropped by another transaction", databaseName, tableName)));
                 break;
             default:

@@ -80,6 +80,7 @@ import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.security.ConnectorIdentity;
+import io.trino.spi.security.Identity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 import org.apache.thrift.TException;
@@ -302,14 +303,14 @@ public class ThriftHiveMetastore
     }
 
     @Override
-    public Optional<Table> getTable(String databaseName, String tableName)
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
         try {
             return retry()
                     .stopOn(NoSuchObjectException.class)
                     .stopOnIllegalExceptions()
                     .run("getTable", stats.getGetTable().wrap(() -> {
-                        try (ThriftMetastoreClient client = createMetastoreClient()) {
+                        try (ThriftMetastoreClient client = createMetastoreClient(identity)) {
                             return Optional.of(client.getTable(databaseName, tableName));
                         }
                     }));
@@ -334,6 +335,7 @@ public class ThriftHiveMetastore
     @Override
     public PartitionStatistics getTableStatistics(Table table)
     {
+        // confirm if this requires identity
         List<String> dataColumns = table.getSd().getCols().stream()
                 .map(FieldSchema::getName)
                 .collect(toImmutableList());
@@ -1188,7 +1190,7 @@ public class ThriftHiveMetastore
     }
 
     @Override
-    public Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
+    public Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
     {
         checkArgument(!columnNames.isEmpty() || partitionKeysFilter.isAll(), "must pass in all columnNames or the filter must be all");
 
@@ -1203,7 +1205,7 @@ public class ThriftHiveMetastore
                         .stopOn(NoSuchObjectException.class)
                         .stopOnIllegalExceptions()
                         .run("getPartitionNames", stats.getGetPartitionNames().wrap(() -> {
-                            try (ThriftMetastoreClient client = createMetastoreClient()) {
+                            try (ThriftMetastoreClient client = createMetastoreClient(identity)) {
                                 return Optional.of(client.getPartitionNames(databaseName, tableName));
                             }
                         }));
@@ -2047,6 +2049,16 @@ public class ThriftHiveMetastore
     private ThriftMetastoreClient createMetastoreClient()
             throws TException
     {
+        return createMetastoreClient(Optional.empty());
+    }
+
+
+    private ThriftMetastoreClient createMetastoreClient(Optional<ConnectorIdentity> authorizedIdentity)
+            throws TException
+    {
+        if (authorizedIdentity.isPresent()) {
+            return metastoreClientFactory.createMetastoreClientFor(authorizedIdentity);
+        }
         return metastoreClientFactory.createMetastoreClientFor(identity);
     }
 

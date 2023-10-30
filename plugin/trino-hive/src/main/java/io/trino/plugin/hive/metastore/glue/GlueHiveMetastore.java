@@ -285,7 +285,7 @@ public class GlueHiveMetastore
     }
 
     @Override
-    public Optional<Table> getTable(String databaseName, String tableName)
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
         try {
             GetTableResult result = stats.getGetTable().call(() ->
@@ -859,6 +859,7 @@ public class GlueHiveMetastore
     public Optional<List<String>> getPartitionNamesByFilter(
             String databaseName,
             String tableName,
+            Optional<ConnectorIdentity> identity,
             List<String> columnNames,
             TupleDomain<String> partitionKeysFilter)
     {

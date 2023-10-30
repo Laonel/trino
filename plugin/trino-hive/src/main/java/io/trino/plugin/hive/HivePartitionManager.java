@@ -29,6 +29,7 @@ import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.NullableValue;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 
 import java.util.Iterator;
 import java.util.List;
@@ -67,7 +68,11 @@ public class HivePartitionManager
         this.domainCompactionThreshold = domainCompactionThreshold;
     }
 
-    public HivePartitionResult getPartitions(SemiTransactionalHiveMetastore metastore, ConnectorTableHandle tableHandle, Constraint constraint)
+    public HivePartitionResult getPartitions(SemiTransactionalHiveMetastore metastore, ConnectorTableHandle tableHandle, Constraint constraint) {
+        return getPartitions(metastore, tableHandle, constraint, Optional.empty());
+    }
+
+    public HivePartitionResult getPartitions(SemiTransactionalHiveMetastore metastore, ConnectorTableHandle tableHandle, Constraint constraint, Optional<ConnectorIdentity> identity)
     {
         HiveTableHandle hiveTableHandle = (HiveTableHandle) tableHandle;
         TupleDomain<ColumnHandle> effectivePredicate = constraint.getSummary()
@@ -107,7 +112,7 @@ public class HivePartitionManager
         }
         else {
             List<String> partitionNamesList = hiveTableHandle.getPartitionNames()
-                    .orElseGet(() -> getFilteredPartitionNames(metastore, tableName, partitionColumns, compactEffectivePredicate));
+                    .orElseGet(() -> getFilteredPartitionNames(metastore, tableName, partitionColumns, compactEffectivePredicate, identity));
             partitionsIterable = () -> partitionNamesList.stream()
                     // Apply extra filters which could not be done by getFilteredPartitionNames
                     .map(partitionName -> parseValuesAndFilterPartition(tableName, partitionName, partitionColumns, effectivePredicate, predicate))
@@ -177,14 +182,19 @@ public class HivePartitionManager
                 Optional.empty());
     }
 
-    public Iterator<HivePartition> getPartitions(SemiTransactionalHiveMetastore metastore, HiveTableHandle table)
+    public Iterator<HivePartition> getPartitions(SemiTransactionalHiveMetastore metastore, HiveTableHandle table, Optional<ConnectorIdentity> identity)
     {
         // In case of partitions not being loaded, their permissible values are specified in `HiveTableHandle#getCompactEffectivePredicate,
         // so we do an intersection of getCompactEffectivePredicate and HiveTable's enforced constraint
         TupleDomain<ColumnHandle> summary = table.getEnforcedConstraint().intersect(
                 table.getCompactEffectivePredicate()
                         .transformKeys(ColumnHandle.class::cast));
-        return table.getPartitions().map(List::iterator).orElseGet(() -> getPartitions(metastore, table, new Constraint(summary)).getPartitions());
+        return table.getPartitions().map(List::iterator).orElseGet(() -> getPartitions(metastore, table, new Constraint(summary), identity).getPartitions());
+    }
+
+    public Iterator<HivePartition> getPartitions(SemiTransactionalHiveMetastore metastore, HiveTableHandle table)
+    {
+        return getPartitions(metastore, table, Optional.empty());
     }
 
     public Optional<List<HivePartition>> tryLoadPartitions(HivePartitionResult partitionResult)
@@ -238,14 +248,14 @@ public class HivePartitionManager
         return true;
     }
 
-    private List<String> getFilteredPartitionNames(SemiTransactionalHiveMetastore metastore, SchemaTableName tableName, List<HiveColumnHandle> partitionKeys, TupleDomain<HiveColumnHandle> effectivePredicate)
+    private List<String> getFilteredPartitionNames(SemiTransactionalHiveMetastore metastore, SchemaTableName tableName, List<HiveColumnHandle> partitionKeys, TupleDomain<HiveColumnHandle> effectivePredicate, Optional<ConnectorIdentity> identity)
     {
         List<String> columnNames = partitionKeys.stream()
                 .map(HiveColumnHandle::getName)
                 .collect(toImmutableList());
         TupleDomain<String> partitionKeysFilter = computePartitionKeyFilter(partitionKeys, effectivePredicate);
         // fetch the partition names
-        return metastore.getPartitionNamesByFilter(tableName.getSchemaName(), tableName.getTableName(), columnNames, partitionKeysFilter)
+        return metastore.getPartitionNamesByFilter(tableName.getSchemaName(), tableName.getTableName(), columnNames, partitionKeysFilter, identity)
                 .orElseThrow(() -> new TableNotFoundException(tableName));
     }
 

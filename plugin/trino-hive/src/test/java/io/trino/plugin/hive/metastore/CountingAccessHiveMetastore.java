@@ -24,6 +24,7 @@ import io.trino.plugin.hive.acid.AcidTransaction;
 import io.trino.plugin.hive.metastore.HivePrivilegeInfo.HivePrivilege;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -83,10 +84,10 @@ public class CountingAccessHiveMetastore
     }
 
     @Override
-    public Optional<Table> getTable(String databaseName, String tableName)
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
         methodInvocations.add(Method.GET_TABLE);
-        return delegate.getTable(databaseName, tableName);
+        return delegate.getTable(databaseName, tableName, identity);
     }
 
     @Override
@@ -232,11 +233,12 @@ public class CountingAccessHiveMetastore
     @Override
     public Optional<List<String>> getPartitionNamesByFilter(String databaseName,
             String tableName,
+            Optional<ConnectorIdentity> identity,
             List<String> columnNames,
             TupleDomain<String> partitionKeysFilter)
     {
         methodInvocations.add(Method.GET_PARTITION_NAMES_BY_FILTER);
-        return delegate.getPartitionNamesByFilter(databaseName, tableName, columnNames, partitionKeysFilter);
+        return delegate.getPartitionNamesByFilter(databaseName, tableName, identity, columnNames, partitionKeysFilter);
     }
 
     @Override

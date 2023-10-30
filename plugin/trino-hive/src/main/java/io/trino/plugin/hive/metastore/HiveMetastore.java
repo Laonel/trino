@@ -25,6 +25,7 @@ import io.trino.plugin.hive.metastore.HivePrivilegeInfo.HivePrivilege;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -43,7 +44,12 @@ public interface HiveMetastore
 
     List<String> getAllDatabases();
 
-    Optional<Table> getTable(String databaseName, String tableName);
+    default Optional<Table> getTable(String databaseName, String tableName)
+    {
+        return getTable(databaseName, tableName, Optional.empty());
+    }
+
+    Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> connectorIdentity);
 
     Set<HiveColumnStatisticType> getSupportedColumnStatistics(Type type);
 
@@ -124,7 +130,11 @@ public interface HiveMetastore
      * @return a list of partition names as created by {@link MetastoreUtil#toPartitionName}
      * @see TupleDomain
      */
-    Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter);
+    default Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter) {
+        return getPartitionNamesByFilter(databaseName, tableName, Optional.empty(), columnNames, partitionKeysFilter);
+    }
+
+    Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> columnNames, TupleDomain<String> partitionKeysFilter);
 
     Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames);
 

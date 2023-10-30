@@ -28,8 +28,10 @@ import io.trino.plugin.hive.metastore.PrincipalPrivileges;
 import io.trino.plugin.hive.metastore.Table;
 import io.trino.plugin.hive.metastore.TablesWithParameterCacheKey;
 import io.trino.plugin.hive.metastore.UserTableKey;
+import io.trino.plugin.hive.metastore.cache.CachingHiveMetastore;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -73,7 +75,13 @@ public class RecordingHiveMetastore
     @Override
     public Optional<Table> getTable(String databaseName, String tableName)
     {
-        return recording.getTable(hiveTableName(databaseName, tableName), () -> delegate.getTable(databaseName, tableName));
+        return recording.getTable(new CachingHiveMetastore.WithIdentity<>(Optional.empty(), hiveTableName(databaseName, tableName)), () -> delegate.getTable(databaseName, tableName));
+    }
+
+    @Override
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
+    {
+        return recording.getTable(new CachingHiveMetastore.WithIdentity<>(identity, hiveTableName(databaseName, tableName)), () -> delegate.getTable(databaseName, tableName, identity));
     }
 
     @Override
@@ -266,8 +274,16 @@ public class RecordingHiveMetastore
     public Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
     {
         return recording.getPartitionNamesByFilter(
-                partitionFilter(databaseName, tableName, columnNames, partitionKeysFilter),
+                new CachingHiveMetastore.WithIdentity<>(Optional.empty(), partitionFilter(databaseName, tableName, columnNames, partitionKeysFilter)),
                 () -> delegate.getPartitionNamesByFilter(databaseName, tableName, columnNames, partitionKeysFilter));
+    }
+
+    @Override
+    public Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
+    {
+        return recording.getPartitionNamesByFilter(
+                new CachingHiveMetastore.WithIdentity<>(identity, partitionFilter(databaseName, tableName, columnNames, partitionKeysFilter)),
+                () -> delegate.getPartitionNamesByFilter(databaseName, tableName, identity, columnNames, partitionKeysFilter));
     }
 
     @Override

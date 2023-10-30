@@ -55,6 +55,7 @@ import io.trino.plugin.hive.metastore.UserTableKey;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 import org.weakref.jmx.Managed;
@@ -66,6 +67,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -77,6 +79,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Throwables.throwIfInstanceOf;
@@ -116,7 +119,7 @@ public class CachingHiveMetastore
     private final boolean cacheMissing;
     private final LoadingCache<String, Optional<Database>> databaseCache;
     private final LoadingCache<String, List<String>> databaseNamesCache;
-    private final LoadingCache<HiveTableName, Optional<Table>> tableCache;
+    private final LoadingCache<WithIdentity<HiveTableName>, Optional<Table>> tableCache;
     private final LoadingCache<String, List<String>> tableNamesCache;
     private final LoadingCache<SingletonCacheKey, Optional<List<SchemaTableName>>> allTableNamesCache;
     private final LoadingCache<TablesWithParameterCacheKey, List<String>> tablesWithParameterCache;
@@ -125,7 +128,7 @@ public class CachingHiveMetastore
     private final LoadingCache<String, List<String>> viewNamesCache;
     private final LoadingCache<SingletonCacheKey, Optional<List<SchemaTableName>>> allViewNamesCache;
     private final Cache<HivePartitionName, AtomicReference<Optional<Partition>>> partitionCache;
-    private final LoadingCache<PartitionFilter, Optional<List<String>>> partitionFilterCache;
+    private final LoadingCache<WithIdentity<PartitionFilter>, Optional<List<String>>> partitionFilterCache;
     private final LoadingCache<UserTableKey, Set<HivePrivilegeInfo>> tablePrivilegesCache;
     private final LoadingCache<String, Set<String>> rolesCache;
     private final LoadingCache<HivePrincipal, Set<RoleGrant>> roleGrantsCache;
@@ -593,7 +596,13 @@ public class CachingHiveMetastore
     @Override
     public Optional<Table> getTable(String databaseName, String tableName)
     {
-        return getOptional(tableCache, hiveTableName(databaseName, tableName));
+        return getOptional(tableCache, new WithIdentity<>(Optional.empty(), new HiveTableName(databaseName, tableName)));
+    }
+
+    @Override
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
+    {
+        return getOptional(tableCache, new WithIdentity<>(identity, new HiveTableName(databaseName, tableName)));
     }
 
     @Override
@@ -602,9 +611,9 @@ public class CachingHiveMetastore
         return delegate.getSupportedColumnStatistics(type);
     }
 
-    private Optional<Table> loadTable(HiveTableName hiveTableName)
+    private Optional<Table> loadTable(WithIdentity<HiveTableName> hiveTableNameWithIdentity)
     {
-        return delegate.getTable(hiveTableName.getDatabaseName(), hiveTableName.getTableName());
+        return delegate.getTable(hiveTableNameWithIdentity.key.getDatabaseName(), hiveTableNameWithIdentity.key.getTableName(), hiveTableNameWithIdentity.getIdentity());
     }
 
     /**
@@ -987,16 +996,28 @@ public class CachingHiveMetastore
             List<String> columnNames,
             TupleDomain<String> partitionKeysFilter)
     {
-        return getOptional(partitionFilterCache, partitionFilter(databaseName, tableName, columnNames, partitionKeysFilter));
+        return getOptional(partitionFilterCache, new WithIdentity<>(Optional.empty(), partitionFilter(databaseName, tableName, columnNames, partitionKeysFilter)));
     }
 
-    private Optional<List<String>> loadPartitionNamesByFilter(PartitionFilter partitionFilter)
+    @Override
+    public Optional<List<String>> getPartitionNamesByFilter(
+            String databaseName,
+            String tableName,
+            Optional<ConnectorIdentity> identity,
+            List<String> columnNames,
+            TupleDomain<String> partitionKeysFilter)
+    {
+        return getOptional(partitionFilterCache, new WithIdentity<>(identity, partitionFilter(databaseName, tableName, columnNames, partitionKeysFilter)));
+    }
+
+    private Optional<List<String>> loadPartitionNamesByFilter(WithIdentity<PartitionFilter> partitionFilter)
     {
         return delegate.getPartitionNamesByFilter(
-                partitionFilter.getHiveTableName().getDatabaseName(),
-                partitionFilter.getHiveTableName().getTableName(),
-                partitionFilter.getPartitionColumnNames(),
-                partitionFilter.getPartitionKeysFilter());
+                partitionFilter.key.getHiveTableName().getDatabaseName(),
+                partitionFilter.key.getHiveTableName().getTableName(),
+                partitionFilter.getIdentity(),
+                partitionFilter.key.getPartitionColumnNames(),
+                partitionFilter.key.getPartitionKeysFilter());
     }
 
     @Override
@@ -1164,7 +1185,7 @@ public class CachingHiveMetastore
                 partitionPredicate.test(partitionName.getPartitionName());
 
         invalidateAllIf(partitionCache, hivePartitionPredicate);
-        invalidateAllIf(partitionFilterCache, partitionFilter -> partitionFilter.getHiveTableName().equals(hiveTableName));
+        invalidateAllIf(partitionFilterCache, partitionFilter -> partitionFilter.key.getHiveTableName().equals(hiveTableName));
         invalidateAllIf(partitionStatisticsCache, hivePartitionPredicate);
     }
 
@@ -1326,6 +1347,60 @@ public class CachingHiveMetastore
         }
         finally {
             invalidateTable(table.getDatabaseName(), table.getTableName());
+        }
+    }
+
+    public static class WithIdentity<T>
+    {
+        private final Optional<ConnectorIdentity> identity;
+        private final T key;
+        private final int hashCode;
+
+        public WithIdentity(Optional<ConnectorIdentity> identity, T key)
+        {
+            this.identity = requireNonNull(identity, "identity is null");
+            this.key = requireNonNull(key, "key is null");
+            this.hashCode = Objects.hash(identity, key);
+        }
+
+        public Optional<ConnectorIdentity> getIdentity()
+        {
+            return identity;
+        }
+
+        public T getKey()
+        {
+            return key;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            WithIdentity<?> other = (WithIdentity<?>) o;
+            return hashCode == other.hashCode &&
+                    Objects.equals(identity, other.identity) &&
+                    Objects.equals(key, other.key);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return hashCode;
+        }
+
+        @Override
+        public String toString()
+        {
+            return toStringHelper(this)
+                    .add("identity", identity)
+                    .add("key", key)
+                    .toString();
         }
     }
 
@@ -1536,7 +1611,7 @@ public class CachingHiveMetastore
         return databaseNamesCache;
     }
 
-    LoadingCache<HiveTableName, Optional<Table>> getTableCache()
+    LoadingCache<WithIdentity<HiveTableName>, Optional<Table>> getTableCache()
     {
         return tableCache;
     }
@@ -1581,7 +1656,7 @@ public class CachingHiveMetastore
         return partitionCache;
     }
 
-    LoadingCache<PartitionFilter, Optional<List<String>>> getPartitionFilterCache()
+    LoadingCache<WithIdentity<PartitionFilter>, Optional<List<String>>> getPartitionFilterCache()
     {
         return partitionFilterCache;
     }

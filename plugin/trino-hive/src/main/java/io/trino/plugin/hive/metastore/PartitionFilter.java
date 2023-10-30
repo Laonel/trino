@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static io.trino.plugin.hive.metastore.HiveTableName.hiveTableName;
 import static java.util.Objects.requireNonNull;
 
 @Immutable
@@ -46,7 +45,7 @@ public class PartitionFilter
 
     public static PartitionFilter partitionFilter(String databaseName, String tableName, List<String> partitionColumnNames, TupleDomain<String> partitionKeysFilter)
     {
-        return new PartitionFilter(hiveTableName(databaseName, tableName), partitionColumnNames, partitionKeysFilter);
+        return new PartitionFilter(HiveTableName.hiveTableName(databaseName, tableName), partitionColumnNames, partitionKeysFilter);
     }
 
     @JsonProperty

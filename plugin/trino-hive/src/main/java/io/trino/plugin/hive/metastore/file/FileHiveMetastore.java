@@ -372,7 +372,7 @@ public class FileHiveMetastore
     }
 
     @Override
-    public synchronized Optional<Table> getTable(String databaseName, String tableName)
+    public synchronized Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
         requireNonNull(databaseName, "databaseName is null");
         requireNonNull(tableName, "tableName is null");
@@ -1159,6 +1159,7 @@ public class FileHiveMetastore
     public Optional<List<String>> getPartitionNamesByFilter(
             String databaseName,
             String tableName,
+            Optional<ConnectorIdentity> identity,
             List<String> columnNames,
             TupleDomain<String> partitionKeysFilter)
     {

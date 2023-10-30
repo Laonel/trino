@@ -31,6 +31,7 @@ import io.trino.plugin.hive.metastore.Table;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -79,6 +80,11 @@ public class HiveMetastoreClosure
     public Optional<Table> getTable(String databaseName, String tableName)
     {
         return delegate.getTable(databaseName, tableName);
+    }
+
+    public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
+    {
+        return delegate.getTable(databaseName, tableName, identity);
     }
 
     public Set<HiveColumnStatisticType> getSupportedColumnStatistics(Type type)
@@ -236,6 +242,16 @@ public class HiveMetastoreClosure
     {
         return delegate.getTable(databaseName, tableName)
                 .flatMap(table -> delegate.getPartition(table, partitionValues));
+    }
+
+    public Optional<List<String>> getPartitionNamesByFilter(
+            String databaseName,
+            String tableName,
+            Optional<ConnectorIdentity> identity,
+            List<String> columnNames,
+            TupleDomain<String> partitionKeysFilter)
+    {
+        return delegate.getPartitionNamesByFilter(databaseName, tableName, identity, columnNames, partitionKeysFilter);
     }
 
     public Optional<List<String>> getPartitionNamesByFilter(

@@ -32,6 +32,8 @@ import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.TupleDomain;
+import io.trino.spi.security.ConnectorIdentity;
+import io.trino.spi.security.Identity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -81,13 +83,22 @@ public interface ThriftMetastore
 
     void alterPartition(String databaseName, String tableName, PartitionWithStatistics partition);
 
-    Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter);
+    default Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
+    {
+        return getPartitionNamesByFilter(databaseName, tableName, Optional.empty(), columnNames, partitionKeysFilter);
+    }
+
+    Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> columnNames, TupleDomain<String> partitionKeysFilter);
 
     Optional<Partition> getPartition(String databaseName, String tableName, List<String> partitionValues);
 
     List<Partition> getPartitionsByNames(String databaseName, String tableName, List<String> partitionNames);
 
-    Optional<Table> getTable(String databaseName, String tableName);
+    default Optional<Table> getTable(String databaseName, String tableName) {
+        return getTable(databaseName, tableName, Optional.empty());
+    }
+
+    Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity);
 
     Set<HiveColumnStatisticType> getSupportedColumnStatistics(Type type);
 

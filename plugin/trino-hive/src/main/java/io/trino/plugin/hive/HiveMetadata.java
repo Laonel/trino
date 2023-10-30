@@ -493,8 +493,9 @@ public class HiveMetadata
         if (isHiveSystemSchema(tableName.getSchemaName())) {
             return null;
         }
+        Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
         Table table = metastore
-                .getTable(tableName.getSchemaName(), tableName.getTableName())
+                .getTable(tableName.getSchemaName(), tableName.getTableName(), identity)
                 .orElse(null);
 
         if (table == null) {
@@ -624,7 +625,8 @@ public class HiveMetadata
 
     private ConnectorTableMetadata doGetTableMetadata(ConnectorSession session, SchemaTableName tableName)
     {
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
+        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName(), identity)
                 .orElseThrow(() -> new TableNotFoundException(tableName));
 
         if (isIcebergTable(table) || isDeltaLakeTable(table)) {
@@ -782,7 +784,7 @@ public class HiveMetadata
                         .collect(toImmutableList()))
                 .orElse(ImmutableList.of());
 
-        Table table = metastore.getTable(hiveTableHandle.getSchemaName(), hiveTableHandle.getTableName())
+        Table table = metastore.getTable(hiveTableHandle.getSchemaName(), hiveTableHandle.getTableName(), hiveTableHandle.getAuthorization().map(ConnectorIdentity::ofUser))
                 .orElseThrow(() -> new TableNotFoundException(hiveTableHandle.getSchemaTableName()));
         Optional<String> tableDefaultFileFormat = HiveStorageFormat
                 .getHiveStorageFormat(table.getStorage().getStorageFormat())
@@ -833,7 +835,8 @@ public class HiveMetadata
     public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         SchemaTableName tableName = ((HiveTableHandle) tableHandle).getSchemaTableName();
-        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName())
+        Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
+        Table table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName(), identity)
                 .orElseThrow(() -> new TableNotFoundException(tableName));
         return hiveColumnHandles(table, typeManager, getTimestampPrecision(session)).stream()
                 .collect(toImmutableMap(HiveColumnHandle::getName, identity()));
@@ -897,7 +900,7 @@ public class HiveMetadata
 
         Map<String, Type> columnTypes = columns.entrySet().stream()
                 .collect(toImmutableMap(Map.Entry::getKey, entry -> getColumnMetadata(session, tableHandle, entry.getValue()).getType()));
-        HivePartitionResult partitionResult = partitionManager.getPartitions(metastore, tableHandle, new Constraint(hiveTableHandle.getEnforcedConstraint()));
+        HivePartitionResult partitionResult = partitionManager.getPartitions(metastore, tableHandle, new Constraint(hiveTableHandle.getEnforcedConstraint()), Optional.of(session.getIdentity()));
         // If partitions are not loaded, then don't generate table statistics.
         // Note that the computation is not persisted in the table handle, so can be redone many times
         // TODO: https://github.com/trinodb/trino/issues/10980.
@@ -2802,7 +2805,8 @@ public class HiveMetadata
         if (isHiveSystemSchema(viewName.getSchemaName())) {
             return Optional.empty();
         }
-        return toConnectorViewDefinition(session, viewName, metastore.getTable(viewName.getSchemaName(), viewName.getTableName()));
+        Optional<ConnectorIdentity> identity = Optional.of(session.getIdentity());
+        return toConnectorViewDefinition(session, viewName, metastore.getTable(viewName.getSchemaName(), viewName.getTableName(), identity));
     }
 
     private Optional<ConnectorViewDefinition> toConnectorViewDefinition(ConnectorSession session, SchemaTableName viewName, Optional<Table> table)
@@ -2919,7 +2923,7 @@ public class HiveMetadata
                         // We load the partitions to compute the predicates enforced by the table.
                         // Note that the computation is not persisted in the table handle, so can be redone many times
                         // TODO: https://github.com/trinodb/trino/issues/10980.
-                        HivePartitionResult partitionResult = partitionManager.getPartitions(metastore, table, new Constraint(hiveTable.getEnforcedConstraint()));
+                        HivePartitionResult partitionResult = partitionManager.getPartitions(metastore, table, new Constraint(hiveTable.getEnforcedConstraint()), Optional.of(session.getIdentity()));
                         return partitionManager.tryLoadPartitions(partitionResult);
                     });
 

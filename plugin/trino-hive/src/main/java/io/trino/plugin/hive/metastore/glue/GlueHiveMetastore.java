@@ -315,13 +315,13 @@ public class GlueHiveMetastore
     }
 
     @Override
-    public PartitionStatistics getTableStatistics(Table table)
+    public PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
     {
         return new PartitionStatistics(getHiveBasicStatistics(table.getParameters()), columnStatisticsProvider.getTableColumnStatistics(table));
     }
 
     @Override
-    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
     {
         Map<String, PartitionStatistics> partitionBasicStatistics = columnStatisticsProvider.getPartitionColumnStatistics(partitions).entrySet().stream()
                 .collect(toImmutableMap(
@@ -951,7 +951,7 @@ public class GlueHiveMetastore
      * @return Mapping of partition name to partition object
      */
     @Override
-    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
+    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
         return stats.getGetPartitionByName().call(() -> getPartitionsByNamesInternal(table, partitionNames));
     }

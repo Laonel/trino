@@ -422,7 +422,7 @@ public class InMemoryThriftMetastore
     }
 
     @Override
-    public synchronized List<Partition> getPartitionsByNames(String databaseName, String tableName, List<String> partitionNames)
+    public synchronized List<Partition> getPartitionsByNames(String databaseName, String tableName, List<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
         ImmutableList.Builder<Partition> builder = ImmutableList.builder();
         for (String name : partitionNames) {
@@ -450,7 +450,7 @@ public class InMemoryThriftMetastore
     }
 
     @Override
-    public synchronized PartitionStatistics getTableStatistics(Table table)
+    public synchronized PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
     {
         return getTableStatistics(table.getDbName(), table.getTableName());
     }
@@ -466,7 +466,7 @@ public class InMemoryThriftMetastore
     }
 
     @Override
-    public synchronized Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    public synchronized Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
     {
         List<String> partitionColumns = table.getPartitionKeys().stream()
                 .map(FieldSchema::getName)

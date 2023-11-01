@@ -409,7 +409,7 @@ public class FileHiveMetastore
     }
 
     @Override
-    public synchronized PartitionStatistics getTableStatistics(Table table)
+    public synchronized PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
     {
         return getTableStatistics(table.getDatabaseName(), table.getTableName());
     }
@@ -426,7 +426,7 @@ public class FileHiveMetastore
     }
 
     @Override
-    public synchronized Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    public synchronized Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
     {
         return partitions.stream()
                 .collect(toImmutableMap(partition -> makePartitionName(table, partition), partition -> getPartitionStatisticsInternal(table, partition.getValues())));
@@ -1076,12 +1076,12 @@ public class FileHiveMetastore
         writeFile("roleGrants", getRoleGrantsFile(), roleGrantsCodec, ImmutableList.copyOf(roleGrants), true);
     }
 
-    private synchronized Optional<List<String>> getAllPartitionNames(String databaseName, String tableName)
+    private synchronized Optional<List<String>> getAllPartitionNames(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
         requireNonNull(databaseName, "databaseName is null");
         requireNonNull(tableName, "tableName is null");
 
-        Optional<Table> tableReference = getTable(databaseName, tableName);
+        Optional<Table> tableReference = getTable(databaseName, tableName, identity);
         if (tableReference.isEmpty()) {
             return Optional.empty();
         }
@@ -1163,11 +1163,11 @@ public class FileHiveMetastore
             List<String> columnNames,
             TupleDomain<String> partitionKeysFilter)
     {
-        return getAllPartitionNames(databaseName, tableName);
+        return getAllPartitionNames(databaseName, tableName, identity);
     }
 
     @Override
-    public synchronized Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
+    public synchronized Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
         ImmutableMap.Builder<String, Optional<Partition>> builder = ImmutableMap.builder();
         for (String partitionName : partitionNames) {

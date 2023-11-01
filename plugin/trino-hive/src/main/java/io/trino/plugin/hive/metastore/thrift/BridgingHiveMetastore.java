@@ -109,19 +109,20 @@ public class BridgingHiveMetastore
     }
 
     @Override
-    public PartitionStatistics getTableStatistics(Table table)
+    public PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
     {
-        return delegate.getTableStatistics(toMetastoreApiTable(table));
+        return delegate.getTableStatistics(toMetastoreApiTable(table), identity);
     }
 
     @Override
-    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
     {
         return delegate.getPartitionStatistics(
                 toMetastoreApiTable(table),
                 partitions.stream()
                         .map(ThriftMetastoreUtil::toMetastoreApiPartition)
-                        .collect(toImmutableList()));
+                        .collect(toImmutableList()),
+                identity);
     }
 
     @Override
@@ -360,7 +361,7 @@ public class BridgingHiveMetastore
     }
 
     @Override
-    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
+    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
         requireNonNull(partitionNames, "partitionNames is null");
         if (partitionNames.isEmpty()) {
@@ -369,7 +370,7 @@ public class BridgingHiveMetastore
 
         Map<String, List<String>> partitionNameToPartitionValuesMap = partitionNames.stream()
                 .collect(Collectors.toMap(identity(), HiveUtil::toPartitionValues));
-        Map<List<String>, Partition> partitionValuesToPartitionMap = delegate.getPartitionsByNames(table.getDatabaseName(), table.getTableName(), partitionNames).stream()
+        Map<List<String>, Partition> partitionValuesToPartitionMap = delegate.getPartitionsByNames(table.getDatabaseName(), table.getTableName(), partitionNames, identity).stream()
                 .map(partition -> fromMetastoreApiPartition(table, partition))
                 .collect(Collectors.toMap(Partition::getValues, identity()));
         ImmutableMap.Builder<String, Optional<Partition>> resultBuilder = ImmutableMap.builder();

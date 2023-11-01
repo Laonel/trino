@@ -242,10 +242,10 @@ public class CountingAccessHiveMetastore
     }
 
     @Override
-    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
+    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
         methodInvocations.add(Method.GET_PARTITIONS_BY_NAMES);
-        return delegate.getPartitionsByNames(table, partitionNames);
+        return delegate.getPartitionsByNames(table, partitionNames, identity);
     }
 
     @Override
@@ -328,17 +328,17 @@ public class CountingAccessHiveMetastore
     }
 
     @Override
-    public PartitionStatistics getTableStatistics(Table table)
+    public PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
     {
         methodInvocations.add(Method.GET_TABLE_STATISTICS);
-        return delegate.getTableStatistics(table);
+        return delegate.getTableStatistics(table, identity);
     }
 
     @Override
-    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
     {
         methodInvocations.add(Method.GET_PARTITION_STATISTICS);
-        return delegate.getPartitionStatistics(table, partitions);
+        return delegate.getPartitionStatistics(table, partitions, identity);
     }
 
     @Override

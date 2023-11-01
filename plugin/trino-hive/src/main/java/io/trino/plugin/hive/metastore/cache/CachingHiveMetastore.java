@@ -123,11 +123,11 @@ public class CachingHiveMetastore
     private final LoadingCache<String, List<String>> tableNamesCache;
     private final LoadingCache<SingletonCacheKey, Optional<List<SchemaTableName>>> allTableNamesCache;
     private final LoadingCache<TablesWithParameterCacheKey, List<String>> tablesWithParameterCache;
-    private final Cache<HiveTableName, AtomicReference<PartitionStatistics>> tableStatisticsCache;
-    private final Cache<HivePartitionName, AtomicReference<PartitionStatistics>> partitionStatisticsCache;
+    private final Cache<WithIdentity<HiveTableName>, AtomicReference<PartitionStatistics>> tableStatisticsCache;
+    private final Cache<WithIdentity<HivePartitionName>, AtomicReference<PartitionStatistics>> partitionStatisticsCache;
     private final LoadingCache<String, List<String>> viewNamesCache;
     private final LoadingCache<SingletonCacheKey, Optional<List<SchemaTableName>>> allViewNamesCache;
-    private final Cache<HivePartitionName, AtomicReference<Optional<Partition>>> partitionCache;
+    private final Cache<WithIdentity<HivePartitionName>, AtomicReference<Optional<Partition>>> partitionCache;
     private final LoadingCache<WithIdentity<PartitionFilter>, Optional<List<String>>> partitionFilterCache;
     private final LoadingCache<UserTableKey, Set<HivePrivilegeInfo>> tablePrivilegesCache;
     private final LoadingCache<String, Set<String>> rolesCache;
@@ -410,16 +410,16 @@ public class CachingHiveMetastore
         invalidatePartitionCache(schemaName, tableName, partitionNameToCheck -> partitionNameToCheck.map(value -> value.equals(providedPartitionName)).orElse(false));
     }
 
-    private AtomicReference<PartitionStatistics> refreshTableStatistics(HiveTableName tableName, AtomicReference<PartitionStatistics> currentValueHolder)
+    private AtomicReference<PartitionStatistics> refreshTableStatistics(WithIdentity<HiveTableName> tableName, AtomicReference<PartitionStatistics> currentValueHolder)
     {
         PartitionStatistics currentValue = currentValueHolder.get();
         if (currentValue == null) {
             // do not refresh empty value
             return currentValueHolder;
         }
-        PartitionStatistics reloaded = getTable(tableName.getDatabaseName(), tableName.getTableName())
+        PartitionStatistics reloaded = getTable(tableName.key.getDatabaseName(), tableName.key.getTableName(), tableName.getIdentity())
                 .map(table -> table.withSelectedDataColumnsOnly(currentValue.getColumnStatistics().keySet()))
-                .map(delegate::getTableStatistics)
+                .map(tab -> delegate.getTableStatistics(tab, tableName.getIdentity()))
                 .orElseThrow();
 
         // return new value holder to have only fresh data in case of concurrent loads
@@ -594,15 +594,9 @@ public class CachingHiveMetastore
     }
 
     @Override
-    public Optional<Table> getTable(String databaseName, String tableName)
-    {
-        return getOptional(tableCache, new WithIdentity<>(Optional.empty(), new HiveTableName(databaseName, tableName)));
-    }
-
-    @Override
     public Optional<Table> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
-        return getOptional(tableCache, new WithIdentity<>(identity, new HiveTableName(databaseName, tableName)));
+        return getOptional(tableCache, new WithIdentity<>(identity, hiveTableName(databaseName, tableName)));
     }
 
     @Override
@@ -621,19 +615,19 @@ public class CachingHiveMetastore
      * but may return more if other columns are already cached.
      */
     @Override
-    public PartitionStatistics getTableStatistics(Table table)
+    public PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
     {
         Set<String> dataColumns = table.getDataColumns().stream().map(Column::getName).collect(toImmutableSet());
 
         return getIncrementally(
                 tableStatisticsCache,
-                hiveTableName(table.getDatabaseName(), table.getTableName()),
+                new WithIdentity<>(identity, hiveTableName(table.getDatabaseName(), table.getTableName())),
                 currentStatistics -> currentStatistics.getColumnStatistics().keySet().containsAll(dataColumns),
-                () -> delegate.getTableStatistics(table),
+                () -> delegate.getTableStatistics(table, identity),
                 currentStatistics -> {
                     SetView<String> missingColumns = difference(dataColumns, currentStatistics.getColumnStatistics().keySet());
                     Table tableWithOnlyMissingColumns = table.withSelectedDataColumnsOnly(missingColumns);
-                    return delegate.getTableStatistics(tableWithOnlyMissingColumns);
+                    return delegate.getTableStatistics(tableWithOnlyMissingColumns, identity);
                 },
                 CachingHiveMetastore::mergePartitionColumnStatistics);
     }
@@ -643,22 +637,22 @@ public class CachingHiveMetastore
      * but may return more if other columns are already cached for a given partition.
      */
     @Override
-    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
     {
         HiveTableName hiveTableName = hiveTableName(table.getDatabaseName(), table.getTableName());
-        Map<HivePartitionName, Partition> partitionsByName = partitions.stream()
-                .collect(toImmutableMap(partition -> hivePartitionName(hiveTableName, makePartitionName(table, partition)), identity()));
+        Map<WithIdentity<HivePartitionName>, Partition> partitionsByName = partitions.stream()
+                .collect(toImmutableMap(partition -> new WithIdentity<>(identity, hivePartitionName(hiveTableName, makePartitionName(table, partition))), identity()));
 
         Set<String> dataColumns = table.getDataColumns().stream().map(Column::getName).collect(toImmutableSet());
 
-        Map<HivePartitionName, PartitionStatistics> statistics = getAll(
+        Map<WithIdentity<HivePartitionName>, PartitionStatistics> statistics = getAll(
                 partitionStatisticsCache,
                 partitionsByName.keySet(),
                 missingPartitions -> loadPartitionsColumnStatistics(table, partitionsByName, missingPartitions),
                 currentStats -> currentStats.getColumnStatistics().keySet().containsAll(dataColumns),
                 CachingHiveMetastore::mergePartitionColumnStatistics);
         return statistics.entrySet().stream()
-                .collect(toImmutableMap(entry -> entry.getKey().getPartitionName().orElseThrow(), Entry::getValue));
+                .collect(toImmutableMap(entry -> entry.getKey().getKey().getPartitionName().orElseThrow(), Entry::getValue));
     }
 
     private static PartitionStatistics mergePartitionColumnStatistics(PartitionStatistics currentStats, PartitionStatistics newStats)
@@ -675,18 +669,18 @@ public class CachingHiveMetastore
                         .buildKeepingLast());
     }
 
-    private Map<HivePartitionName, PartitionStatistics> loadPartitionsColumnStatistics(Table table, Map<HivePartitionName, Partition> partitionsByName, Collection<HivePartitionName> partitionNamesToLoad)
+    private Map<WithIdentity<HivePartitionName>, PartitionStatistics> loadPartitionsColumnStatistics(Table table, Map<WithIdentity<HivePartitionName>, Partition> partitionsByName, Collection<WithIdentity<HivePartitionName>> partitionNamesToLoad)
     {
         if (partitionNamesToLoad.isEmpty()) {
             return ImmutableMap.of();
         }
-        ImmutableMap.Builder<HivePartitionName, PartitionStatistics> result = ImmutableMap.builder();
+        ImmutableMap.Builder<WithIdentity<HivePartitionName>, PartitionStatistics> result = ImmutableMap.builder();
         List<Partition> partitionsToLoad = partitionNamesToLoad.stream()
                 .map(partitionsByName::get)
                 .collect(toImmutableList());
         Map<String, PartitionStatistics> statisticsByPartitionName = delegate.getPartitionStatistics(table, partitionsToLoad);
-        for (HivePartitionName partitionName : partitionNamesToLoad) {
-            String stringNameForPartition = partitionName.getPartitionName().orElseThrow();
+        for (WithIdentity<HivePartitionName> partitionName : partitionNamesToLoad) {
+            String stringNameForPartition = partitionName.key.getPartitionName().orElseThrow();
             result.put(partitionName, statisticsByPartitionName.get(stringNameForPartition));
         }
         return result.buildOrThrow();
@@ -986,17 +980,7 @@ public class CachingHiveMetastore
     @Override
     public Optional<Partition> getPartition(Table table, List<String> partitionValues)
     {
-        return getWithValueHolder(partitionCache, hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), partitionValues), () -> delegate.getPartition(table, partitionValues));
-    }
-
-    @Override
-    public Optional<List<String>> getPartitionNamesByFilter(
-            String databaseName,
-            String tableName,
-            List<String> columnNames,
-            TupleDomain<String> partitionKeysFilter)
-    {
-        return getOptional(partitionFilterCache, new WithIdentity<>(Optional.empty(), partitionFilter(databaseName, tableName, columnNames, partitionKeysFilter)));
+        return getWithValueHolder(partitionCache, new WithIdentity<>(Optional.empty(), hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), partitionValues)), () -> delegate.getPartition(table, partitionValues));
     }
 
     @Override
@@ -1021,41 +1005,43 @@ public class CachingHiveMetastore
     }
 
     @Override
-    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
+    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
-        List<HivePartitionName> names = partitionNames.stream()
-                .map(name -> hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), name))
+        List<WithIdentity<HivePartitionName>> names = partitionNames.stream()
+                .map(name -> new WithIdentity<>(identity, hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), name)))
                 .collect(toImmutableList());
 
-        Map<HivePartitionName, Optional<Partition>> all = getAll(
+        Map<WithIdentity<HivePartitionName>, Optional<Partition>> all = getAll(
                 partitionCache,
                 names,
                 namesToLoad -> loadPartitionsByNames(table, namesToLoad));
         ImmutableMap.Builder<String, Optional<Partition>> partitionsByName = ImmutableMap.builder();
-        for (Entry<HivePartitionName, Optional<Partition>> entry : all.entrySet()) {
-            partitionsByName.put(entry.getKey().getPartitionName().orElseThrow(), entry.getValue());
+        for (Entry<WithIdentity<HivePartitionName>, Optional<Partition>> entry : all.entrySet()) {
+            partitionsByName.put(entry.getKey().getKey().getPartitionName().orElseThrow(), entry.getValue());
         }
         return partitionsByName.buildOrThrow();
     }
 
-    private Map<HivePartitionName, Optional<Partition>> loadPartitionsByNames(Table table, Iterable<? extends HivePartitionName> partitionNames)
+    private Map<WithIdentity<HivePartitionName>, Optional<Partition>> loadPartitionsByNames(Table table, Iterable<? extends WithIdentity<HivePartitionName>> partitionNames)
     {
         requireNonNull(partitionNames, "partitionNames is null");
         checkArgument(!Iterables.isEmpty(partitionNames), "partitionNames is empty");
 
-        HivePartitionName firstPartition = Iterables.get(partitionNames, 0);
+        HivePartitionName firstPartition = Iterables.get(partitionNames, 0).getKey();
+        Optional<ConnectorIdentity> identity = Iterables.get(partitionNames, 0).getIdentity();
 
         HiveTableName hiveTableName = firstPartition.getHiveTableName();
+
         List<String> partitionsToFetch = new ArrayList<>();
-        for (HivePartitionName partitionName : partitionNames) {
-            checkArgument(partitionName.getHiveTableName().equals(hiveTableName), "Expected table name %s but got %s", hiveTableName, partitionName.getHiveTableName());
-            partitionsToFetch.add(partitionName.getPartitionName().orElseThrow());
+        for (WithIdentity<HivePartitionName> partitionName : partitionNames) {
+            checkArgument(partitionName.getKey().getHiveTableName().equals(hiveTableName), "Expected table name %s but got %s", hiveTableName, partitionName.getKey().getHiveTableName());
+            partitionsToFetch.add(partitionName.getKey().getPartitionName().orElseThrow());
         }
 
-        ImmutableMap.Builder<HivePartitionName, Optional<Partition>> partitions = ImmutableMap.builder();
-        Map<String, Optional<Partition>> partitionsByNames = delegate.getPartitionsByNames(table, partitionsToFetch);
-        for (HivePartitionName partitionName : partitionNames) {
-            partitions.put(partitionName, partitionsByNames.getOrDefault(partitionName.getPartitionName().orElseThrow(), Optional.empty()));
+        ImmutableMap.Builder<WithIdentity<HivePartitionName>, Optional<Partition>> partitions = ImmutableMap.builder();
+        Map<String, Optional<Partition>> partitionsByNames = delegate.getPartitionsByNames(table, partitionsToFetch, identity);
+        for (WithIdentity<HivePartitionName> partitionName : partitionNames) {
+            partitions.put(partitionName, partitionsByNames.getOrDefault(partitionName.getKey().getPartitionName().orElseThrow(), Optional.empty()));
         }
         return partitions.buildOrThrow();
     }
@@ -1181,8 +1167,8 @@ public class CachingHiveMetastore
     {
         HiveTableName hiveTableName = hiveTableName(databaseName, tableName);
 
-        Predicate<HivePartitionName> hivePartitionPredicate = partitionName -> partitionName.getHiveTableName().equals(hiveTableName) &&
-                partitionPredicate.test(partitionName.getPartitionName());
+        Predicate<WithIdentity<HivePartitionName>> hivePartitionPredicate = partitionName -> partitionName.getKey().getHiveTableName().equals(hiveTableName) &&
+                partitionPredicate.test(partitionName.getKey().getPartitionName());
 
         invalidateAllIf(partitionCache, hivePartitionPredicate);
         invalidateAllIf(partitionFilterCache, partitionFilter -> partitionFilter.key.getHiveTableName().equals(hiveTableName));
@@ -1631,12 +1617,12 @@ public class CachingHiveMetastore
         return tablesWithParameterCache;
     }
 
-    Cache<HiveTableName, AtomicReference<PartitionStatistics>> getTableStatisticsCache()
+    Cache<WithIdentity<HiveTableName>, AtomicReference<PartitionStatistics>> getTableStatisticsCache()
     {
         return tableStatisticsCache;
     }
 
-    Cache<HivePartitionName, AtomicReference<PartitionStatistics>> getPartitionStatisticsCache()
+    Cache<WithIdentity<HivePartitionName>, AtomicReference<PartitionStatistics>> getPartitionStatisticsCache()
     {
         return partitionStatisticsCache;
     }
@@ -1651,7 +1637,7 @@ public class CachingHiveMetastore
         return allViewNamesCache;
     }
 
-    Cache<HivePartitionName, AtomicReference<Optional<Partition>>> getPartitionCache()
+    Cache<WithIdentity<HivePartitionName>, AtomicReference<Optional<Partition>>> getPartitionCache()
     {
         return partitionCache;
     }

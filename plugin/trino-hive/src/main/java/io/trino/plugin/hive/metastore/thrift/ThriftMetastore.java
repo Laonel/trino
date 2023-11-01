@@ -33,7 +33,6 @@ import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.security.ConnectorIdentity;
-import io.trino.spi.security.Identity;
 import io.trino.spi.security.RoleGrant;
 import io.trino.spi.type.Type;
 
@@ -92,9 +91,15 @@ public interface ThriftMetastore
 
     Optional<Partition> getPartition(String databaseName, String tableName, List<String> partitionValues);
 
-    List<Partition> getPartitionsByNames(String databaseName, String tableName, List<String> partitionNames);
+    default List<Partition> getPartitionsByNames(String databaseName, String tableName, List<String> partitionNames)
+    {
+        return getPartitionsByNames(databaseName, tableName, partitionNames, Optional.empty());
+    }
 
-    default Optional<Table> getTable(String databaseName, String tableName) {
+    List<Partition> getPartitionsByNames(String databaseName, String tableName, List<String> partitionNames, Optional<ConnectorIdentity> identity);
+
+    default Optional<Table> getTable(String databaseName, String tableName)
+    {
         return getTable(databaseName, tableName, Optional.empty());
     }
 
@@ -102,9 +107,19 @@ public interface ThriftMetastore
 
     Set<HiveColumnStatisticType> getSupportedColumnStatistics(Type type);
 
-    PartitionStatistics getTableStatistics(Table table);
+    default PartitionStatistics getTableStatistics(Table table)
+    {
+        return getTableStatistics(table, Optional.empty());
+    }
 
-    Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions);
+    PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity);
+
+    default Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    {
+        return getPartitionStatistics(table, partitions, Optional.empty());
+    }
+
+    Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity);
 
     void updateTableStatistics(String databaseName, String tableName, AcidTransaction transaction, Function<PartitionStatistics, PartitionStatistics> update);
 

@@ -310,10 +310,15 @@ public class SemiTransactionalHiveMetastore
 
     public synchronized PartitionStatistics getTableStatistics(String databaseName, String tableName, Optional<Set<String>> columns)
     {
+        return getTableStatistics(databaseName, tableName, columns, Optional.empty());
+    }
+
+    public synchronized PartitionStatistics getTableStatistics(String databaseName, String tableName, Optional<Set<String>> columns, Optional<ConnectorIdentity> identity)
+    {
         checkReadable();
         Action<TableAndMore> tableAction = tableActions.get(new SchemaTableName(databaseName, tableName));
         if (tableAction == null) {
-            return delegate.getTableStatistics(databaseName, tableName, columns);
+            return delegate.getTableStatistics(databaseName, tableName, columns, identity);
         }
         switch (tableAction.getType()) {
             case ADD:
@@ -331,6 +336,11 @@ public class SemiTransactionalHiveMetastore
     }
 
     public synchronized Map<String, PartitionStatistics> getPartitionStatistics(String databaseName, String tableName, Set<String> columns, Set<String> partitionNames)
+    {
+        return getPartitionStatistics(databaseName, tableName, columns, partitionNames, Optional.empty());
+    }
+
+    public synchronized Map<String, PartitionStatistics> getPartitionStatistics(String databaseName, String tableName, Set<String> columns, Set<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
         checkReadable();
         Optional<Table> table = getTable(databaseName, tableName);
@@ -361,7 +371,7 @@ public class SemiTransactionalHiveMetastore
             }
         }
 
-        Map<String, PartitionStatistics> delegateResult = delegate.getPartitionStatistics(databaseName, tableName, partitionNamesToQuery.build(), Optional.of(columns));
+        Map<String, PartitionStatistics> delegateResult = delegate.getPartitionStatistics(databaseName, tableName, partitionNamesToQuery.build(), Optional.of(columns), identity);
         if (!delegateResult.isEmpty()) {
             resultBuilder.putAll(delegateResult);
         }
@@ -923,6 +933,11 @@ public class SemiTransactionalHiveMetastore
 
     public synchronized Map<String, Optional<Partition>> getPartitionsByNames(String databaseName, String tableName, List<String> partitionNames)
     {
+        return getPartitionsByNames(databaseName, tableName, partitionNames);
+    }
+
+    public synchronized Map<String, Optional<Partition>> getPartitionsByNames(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> partitionNames)
+    {
         checkReadable();
         TableSource tableSource = getTableSource(databaseName, tableName);
         Map<List<String>, Action<PartitionAndMore>> partitionActionsOfTable = partitionActions.computeIfAbsent(new SchemaTableName(databaseName, tableName), k -> new HashMap<>());
@@ -953,6 +968,7 @@ public class SemiTransactionalHiveMetastore
             Map<String, Optional<Partition>> delegateResult = delegate.getPartitionsByNames(
                     databaseName,
                     tableName,
+                    identity,
                     partitionNamesToQuery);
             resultBuilder.putAll(delegateResult);
         }

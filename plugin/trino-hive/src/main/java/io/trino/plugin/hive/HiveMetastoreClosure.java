@@ -73,7 +73,12 @@ public class HiveMetastoreClosure
 
     private Table getExistingTable(String databaseName, String tableName)
     {
-        return delegate.getTable(databaseName, tableName)
+        return getExistingTable(databaseName, tableName, Optional.empty());
+    }
+
+    private Table getExistingTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
+    {
+        return delegate.getTable(databaseName, tableName, identity)
                 .orElseThrow(() -> new TableNotFoundException(new SchemaTableName(databaseName, tableName)));
     }
 
@@ -94,7 +99,12 @@ public class HiveMetastoreClosure
 
     public PartitionStatistics getTableStatistics(String databaseName, String tableName, Optional<Set<String>> columns)
     {
-        Table table = getExistingTable(databaseName, tableName);
+        return getTableStatistics(databaseName, tableName, columns, Optional.empty());
+    }
+
+    public PartitionStatistics getTableStatistics(String databaseName, String tableName, Optional<Set<String>> columns, Optional<ConnectorIdentity> identity)
+    {
+        Table table = getExistingTable(databaseName, tableName, identity);
         if (columns.isPresent()) {
             Set<String> requestedColumnNames = columns.get();
             List<Column> requestedColumns = table.getDataColumns().stream()
@@ -102,7 +112,7 @@ public class HiveMetastoreClosure
                     .collect(toImmutableList());
             table = Table.builder(table).setDataColumns(requestedColumns).build();
         }
-        return delegate.getTableStatistics(table);
+        return delegate.getTableStatistics(table, identity);
     }
 
     public Map<String, PartitionStatistics> getPartitionStatistics(String databaseName, String tableName, Set<String> partitionNames)
@@ -112,7 +122,12 @@ public class HiveMetastoreClosure
 
     public Map<String, PartitionStatistics> getPartitionStatistics(String databaseName, String tableName, Set<String> partitionNames, Optional<Set<String>> columns)
     {
-        Table table = getExistingTable(databaseName, tableName);
+        return getPartitionStatistics(databaseName, tableName, partitionNames, columns, Optional.empty());
+    }
+
+    public Map<String, PartitionStatistics> getPartitionStatistics(String databaseName, String tableName, Set<String> partitionNames, Optional<Set<String>> columns, Optional<ConnectorIdentity> identity)
+    {
+        Table table = getExistingTable(databaseName, tableName, identity);
         List<Partition> partitions = getExistingPartitionsByNames(table, ImmutableList.copyOf(partitionNames));
         if (columns.isPresent()) {
             Set<String> requestedColumnNames = columns.get();
@@ -122,7 +137,7 @@ public class HiveMetastoreClosure
             table = Table.builder(table).setDataColumns(requestedColumns).build();
             partitions = partitions.stream().map(partition -> Partition.builder(partition).setColumns(requestedColumns).build()).collect(toImmutableList());
         }
-        return delegate.getPartitionStatistics(table, partitions);
+        return delegate.getPartitionStatistics(table, partitions, identity);
     }
 
     public void updateTableStatistics(String databaseName,
@@ -279,6 +294,14 @@ public class HiveMetastoreClosure
     {
         return delegate.getTable(databaseName, tableName)
                 .map(table -> delegate.getPartitionsByNames(table, partitionNames))
+                .orElseGet(() -> partitionNames.stream()
+                        .collect(toImmutableMap(name -> name, name -> Optional.empty())));
+    }
+
+    public Map<String, Optional<Partition>> getPartitionsByNames(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> partitionNames)
+    {
+        return delegate.getTable(databaseName, tableName, identity)
+                .map(table -> delegate.getPartitionsByNames(table, partitionNames, identity))
                 .orElseGet(() -> partitionNames.stream()
                         .collect(toImmutableMap(name -> name, name -> Optional.empty())));
     }

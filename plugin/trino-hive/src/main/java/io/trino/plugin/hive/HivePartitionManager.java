@@ -68,7 +68,8 @@ public class HivePartitionManager
         this.domainCompactionThreshold = domainCompactionThreshold;
     }
 
-    public HivePartitionResult getPartitions(SemiTransactionalHiveMetastore metastore, ConnectorTableHandle tableHandle, Constraint constraint) {
+    public HivePartitionResult getPartitions(SemiTransactionalHiveMetastore metastore, ConnectorTableHandle tableHandle, Constraint constraint)
+    {
         return getPartitions(metastore, tableHandle, constraint, Optional.empty());
     }
 

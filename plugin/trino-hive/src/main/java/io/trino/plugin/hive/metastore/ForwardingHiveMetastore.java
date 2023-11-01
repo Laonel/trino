@@ -77,9 +77,21 @@ public abstract class ForwardingHiveMetastore
     }
 
     @Override
+    public PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
+    {
+        return delegate.getTableStatistics(table, identity);
+    }
+
+    @Override
     public PartitionStatistics getTableStatistics(Table table)
     {
         return delegate.getTableStatistics(table);
+    }
+
+    @Override
+    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
+    {
+        return delegate.getPartitionStatistics(table, partitions, identity);
     }
 
     @Override
@@ -267,6 +279,15 @@ public abstract class ForwardingHiveMetastore
             TupleDomain<String> partitionKeysFilter)
     {
         return delegate.getPartitionNamesByFilter(databaseName, tableName, identity, columnNames, partitionKeysFilter);
+    }
+
+    @Override
+    public Map<String, Optional<Partition>> getPartitionsByNames(
+            Table table,
+            List<String> partitionNames,
+            Optional<ConnectorIdentity> identity)
+    {
+        return delegate.getPartitionsByNames(table, partitionNames, identity);
     }
 
     @Override

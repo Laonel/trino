@@ -92,11 +92,29 @@ public class RecordingHiveMetastore
     }
 
     @Override
+    public PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
+    {
+        return recording.getTableStatistics(
+                new CachingHiveMetastore.WithIdentity<>(identity, hiveTableName(table.getDatabaseName(), table.getTableName())),
+                () -> delegate.getTableStatistics(table, identity));
+    }
+
+    @Override
     public PartitionStatistics getTableStatistics(Table table)
     {
         return recording.getTableStatistics(
-                hiveTableName(table.getDatabaseName(), table.getTableName()),
+                new CachingHiveMetastore.WithIdentity<>(Optional.empty(), hiveTableName(table.getDatabaseName(), table.getTableName())),
                 () -> delegate.getTableStatistics(table));
+    }
+
+    @Override
+    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
+    {
+        return recording.getPartitionStatistics(
+                partitions.stream()
+                        .map(partition -> new CachingHiveMetastore.WithIdentity<>(identity, hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), makePartitionName(table, partition))))
+                        .collect(toImmutableSet()),
+                () -> delegate.getPartitionStatistics(table, partitions));
     }
 
     @Override
@@ -104,7 +122,7 @@ public class RecordingHiveMetastore
     {
         return recording.getPartitionStatistics(
                 partitions.stream()
-                        .map(partition -> hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), makePartitionName(table, partition)))
+                        .map(partition -> new CachingHiveMetastore.WithIdentity<>(Optional.empty(), hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), makePartitionName(table, partition))))
                         .collect(toImmutableSet()),
                 () -> delegate.getPartitionStatistics(table, partitions));
     }
@@ -287,11 +305,21 @@ public class RecordingHiveMetastore
     }
 
     @Override
+    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity)
+    {
+        return recording.getPartitionsByNames(
+                partitionNames.stream()
+                        .map(partitionName -> new CachingHiveMetastore.WithIdentity<>(identity, hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), partitionName)))
+                        .collect(toImmutableSet()),
+                () -> delegate.getPartitionsByNames(table, partitionNames));
+    }
+
+    @Override
     public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
     {
         return recording.getPartitionsByNames(
                 partitionNames.stream()
-                        .map(partitionName -> hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), partitionName))
+                        .map(partitionName -> new CachingHiveMetastore.WithIdentity<>(Optional.empty(), hivePartitionName(hiveTableName(table.getDatabaseName(), table.getTableName()), partitionName)))
                         .collect(toImmutableSet()),
                 () -> delegate.getPartitionsByNames(table, partitionNames));
     }

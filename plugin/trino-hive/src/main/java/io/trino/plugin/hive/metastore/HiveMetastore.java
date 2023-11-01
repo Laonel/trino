@@ -53,9 +53,19 @@ public interface HiveMetastore
 
     Set<HiveColumnStatisticType> getSupportedColumnStatistics(Type type);
 
-    PartitionStatistics getTableStatistics(Table table);
+    default PartitionStatistics getTableStatistics(Table table)
+    {
+        return getTableStatistics(table, Optional.empty());
+    }
 
-    Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions);
+    PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity);
+
+    default Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    {
+        return getPartitionStatistics(table, partitions, Optional.empty());
+    }
+
+    Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity);
 
     void updateTableStatistics(String databaseName, String tableName, AcidTransaction transaction, Function<PartitionStatistics, PartitionStatistics> update);
 
@@ -130,13 +140,19 @@ public interface HiveMetastore
      * @return a list of partition names as created by {@link MetastoreUtil#toPartitionName}
      * @see TupleDomain
      */
-    default Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter) {
+    default Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, List<String> columnNames, TupleDomain<String> partitionKeysFilter)
+    {
         return getPartitionNamesByFilter(databaseName, tableName, Optional.empty(), columnNames, partitionKeysFilter);
     }
 
     Optional<List<String>> getPartitionNamesByFilter(String databaseName, String tableName, Optional<ConnectorIdentity> identity, List<String> columnNames, TupleDomain<String> partitionKeysFilter);
 
-    Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames);
+    default Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
+    {
+        return getPartitionsByNames(table, partitionNames, Optional.empty());
+    }
+
+    Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity);
 
     void addPartitions(String databaseName, String tableName, List<PartitionWithStatistics> partitions);
 

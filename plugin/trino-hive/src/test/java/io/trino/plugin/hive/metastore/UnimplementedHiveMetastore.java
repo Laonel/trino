@@ -58,13 +58,13 @@ public class UnimplementedHiveMetastore
     }
 
     @Override
-    public PartitionStatistics getTableStatistics(Table table)
+    public PartitionStatistics getTableStatistics(Table table, Optional<ConnectorIdentity> identity)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions)
+    public Map<String, PartitionStatistics> getPartitionStatistics(Table table, List<Partition> partitions, Optional<ConnectorIdentity> identity)
     {
         throw new UnsupportedOperationException();
     }
@@ -215,7 +215,7 @@ public class UnimplementedHiveMetastore
     }
 
     @Override
-    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames)
+    public Map<String, Optional<Partition>> getPartitionsByNames(Table table, List<String> partitionNames, Optional<ConnectorIdentity> identity)
     {
         throw new UnsupportedOperationException();
     }

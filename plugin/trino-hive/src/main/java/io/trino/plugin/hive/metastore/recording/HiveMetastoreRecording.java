@@ -35,11 +35,9 @@ import io.trino.plugin.hive.metastore.PartitionFilter;
 import io.trino.plugin.hive.metastore.Table;
 import io.trino.plugin.hive.metastore.TablesWithParameterCacheKey;
 import io.trino.plugin.hive.metastore.UserTableKey;
-import io.trino.plugin.hive.metastore.cache.CachingHiveMetastore;
 import io.trino.plugin.hive.metastore.cache.CachingHiveMetastore.WithIdentity;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.SchemaTableName;
-import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.security.RoleGrant;
 import org.weakref.jmx.Managed;
 
@@ -72,8 +70,8 @@ public class HiveMetastoreRecording
     private volatile Optional<Set<String>> allRoles = Optional.empty();
     private final NonEvictableCache<String, Optional<Database>> databaseCache;
     private final NonEvictableCache<WithIdentity<HiveTableName>, Optional<Table>> tableCache;
-    private final NonEvictableCache<HiveTableName, PartitionStatistics> tableStatisticsCache;
-    private final NonEvictableCache<HivePartitionName, PartitionStatistics> partitionStatisticsCache;
+    private final NonEvictableCache<WithIdentity<HiveTableName>, PartitionStatistics> tableStatisticsCache;
+    private final NonEvictableCache<WithIdentity<HivePartitionName>, PartitionStatistics> partitionStatisticsCache;
     private final NonEvictableCache<String, List<String>> tableNamesCache;
     private final NonEvictableCache<SingletonCacheKey, Optional<List<SchemaTableName>>> allTableNamesCache;
     private final NonEvictableCache<TablesWithParameterCacheKey, List<String>> tablesWithParameterCache;
@@ -82,7 +80,7 @@ public class HiveMetastoreRecording
     private final NonEvictableCache<HivePartitionName, Optional<Partition>> partitionCache;
     private final NonEvictableCache<HiveTableName, Optional<List<String>>> partitionNamesCache;
     private final NonEvictableCache<WithIdentity<PartitionFilter>, Optional<List<String>>> partitionNamesByPartsCache;
-    private final NonEvictableCache<HivePartitionName, Optional<Partition>> partitionsByNamesCache;
+    private final NonEvictableCache<WithIdentity<HivePartitionName>, Optional<Partition>> partitionsByNamesCache;
     private final NonEvictableCache<UserTableKey, Set<HivePrivilegeInfo>> tablePrivilegesCache;
     private final NonEvictableCache<HivePrincipal, Set<RoleGrant>> roleGrantsCache;
     private final NonEvictableCache<String, Set<RoleGrant>> grantedPrincipalsCache;
@@ -172,12 +170,12 @@ public class HiveMetastoreRecording
         return loadValue(tableCache, hiveTableName, valueSupplier);
     }
 
-    public PartitionStatistics getTableStatistics(HiveTableName hiveTableName, Supplier<PartitionStatistics> valueSupplier)
+    public PartitionStatistics getTableStatistics(WithIdentity<HiveTableName> hiveTableName, Supplier<PartitionStatistics> valueSupplier)
     {
         return loadValue(tableStatisticsCache, hiveTableName, valueSupplier);
     }
 
-    public Map<String, PartitionStatistics> getPartitionStatistics(Set<HivePartitionName> partitionNames, Supplier<Map<String, PartitionStatistics>> valueSupplier)
+    public Map<String, PartitionStatistics> getPartitionStatistics(Set<WithIdentity<HivePartitionName>> partitionNames, Supplier<Map<String, PartitionStatistics>> valueSupplier)
     {
         return loadPartitionValues(partitionNames, partitionStatisticsCache, valueSupplier);
     }
@@ -217,7 +215,7 @@ public class HiveMetastoreRecording
         return loadValue(partitionNamesByPartsCache, partitionFilter, valueSupplier);
     }
 
-    public Map<String, Optional<Partition>> getPartitionsByNames(Set<HivePartitionName> partitionNames, Supplier<Map<String, Optional<Partition>>> valueSupplier)
+    public Map<String, Optional<Partition>> getPartitionsByNames(Set<WithIdentity<HivePartitionName>> partitionNames, Supplier<Map<String, Optional<Partition>>> valueSupplier)
     {
         return loadPartitionValues(partitionNames, partitionsByNamesCache, valueSupplier);
     }
@@ -303,20 +301,20 @@ public class HiveMetastoreRecording
     }
 
     private <T> Map<String, T> loadPartitionValues(
-            Set<HivePartitionName> partitionNames,
-            Cache<HivePartitionName, T> cache,
+            Set<WithIdentity<HivePartitionName>> partitionNames,
+            Cache<WithIdentity<HivePartitionName>, T> cache,
             Supplier<Map<String, T>> valueSupplier)
     {
         if (replay) {
             return partitionNames.stream()
                     .collect(toImmutableMap(
-                            partitionName -> partitionName.getPartitionName().orElseThrow(),
+                            partitionName -> partitionName.getKey().getPartitionName().orElseThrow(),
                             partitionName -> Optional.ofNullable(cache.getIfPresent(partitionName))
                                     .orElseThrow(() -> new TrinoException(NOT_FOUND, "Missing entry found for key: " + partitionName))));
         }
 
         Map<String, T> value = valueSupplier.get();
-        partitionNames.forEach(partitionName -> cache.put(partitionName, value.get(partitionName.getPartitionName().orElseThrow())));
+        partitionNames.forEach(partitionName -> cache.put(partitionName, value.get(partitionName.getKey().getPartitionName().orElseThrow())));
         return value;
     }
 
@@ -339,15 +337,15 @@ public class HiveMetastoreRecording
         private final Optional<Set<String>> allRoles;
         private final List<Pair<String, Optional<Database>>> databases;
         private final List<Pair<WithIdentity<HiveTableName>, Optional<Table>>> tables;
-        private final List<Pair<HiveTableName, PartitionStatistics>> tableStatistics;
-        private final List<Pair<HivePartitionName, PartitionStatistics>> partitionStatistics;
+        private final List<Pair<WithIdentity<HiveTableName>, PartitionStatistics>> tableStatistics;
+        private final List<Pair<WithIdentity<HivePartitionName>, PartitionStatistics>> partitionStatistics;
         private final List<Pair<String, List<String>>> allTables;
         private final List<Pair<TablesWithParameterCacheKey, List<String>>> tablesWithParameter;
         private final List<Pair<String, List<String>>> allViews;
         private final List<Pair<HivePartitionName, Optional<Partition>>> partitions;
         private final List<Pair<HiveTableName, Optional<List<String>>>> partitionNames;
         private final List<Pair<WithIdentity<PartitionFilter>, Optional<List<String>>>> partitionNamesByParts;
-        private final List<Pair<HivePartitionName, Optional<Partition>>> partitionsByNames;
+        private final List<Pair<WithIdentity<HivePartitionName>, Optional<Partition>>> partitionsByNames;
         private final List<Pair<UserTableKey, Set<HivePrivilegeInfo>>> tablePrivileges;
         private final List<Pair<HivePrincipal, Set<RoleGrant>>> roleGrants;
         private final List<Pair<String, Set<RoleGrant>>> grantedPrincipals;
@@ -358,15 +356,15 @@ public class HiveMetastoreRecording
                 @JsonProperty("allRoles") Optional<Set<String>> allRoles,
                 @JsonProperty("databases") List<Pair<String, Optional<Database>>> databases,
                 @JsonProperty("tables") List<Pair<WithIdentity<HiveTableName>, Optional<Table>>> tables,
-                @JsonProperty("tableStatistics") List<Pair<HiveTableName, PartitionStatistics>> tableStatistics,
-                @JsonProperty("partitionStatistics") List<Pair<HivePartitionName, PartitionStatistics>> partitionStatistics,
+                @JsonProperty("tableStatistics") List<Pair<WithIdentity<HiveTableName>, PartitionStatistics>> tableStatistics,
+                @JsonProperty("partitionStatistics") List<Pair<WithIdentity<HivePartitionName>, PartitionStatistics>> partitionStatistics,
                 @JsonProperty("allTables") List<Pair<String, List<String>>> allTables,
                 @JsonProperty("tablesWithParameter") List<Pair<TablesWithParameterCacheKey, List<String>>> tablesWithParameter,
                 @JsonProperty("allViews") List<Pair<String, List<String>>> allViews,
                 @JsonProperty("partitions") List<Pair<HivePartitionName, Optional<Partition>>> partitions,
                 @JsonProperty("partitionNames") List<Pair<HiveTableName, Optional<List<String>>>> partitionNames,
                 @JsonProperty("partitionNamesByParts") List<Pair<WithIdentity<PartitionFilter>, Optional<List<String>>>> partitionNamesByParts,
-                @JsonProperty("partitionsByNames") List<Pair<HivePartitionName, Optional<Partition>>> partitionsByNames,
+                @JsonProperty("partitionsByNames") List<Pair<WithIdentity<HivePartitionName>, Optional<Partition>>> partitionsByNames,
                 @JsonProperty("tablePrivileges") List<Pair<UserTableKey, Set<HivePrivilegeInfo>>> tablePrivileges,
                 @JsonProperty("roleGrants") List<Pair<HivePrincipal, Set<RoleGrant>>> roleGrants,
                 @JsonProperty("grantedPrincipals") List<Pair<String, Set<RoleGrant>>> grantedPrincipals)
@@ -420,13 +418,13 @@ public class HiveMetastoreRecording
         }
 
         @JsonProperty
-        public List<Pair<HiveTableName, PartitionStatistics>> getTableStatistics()
+        public List<Pair<WithIdentity<HiveTableName>, PartitionStatistics>> getTableStatistics()
         {
             return tableStatistics;
         }
 
         @JsonProperty
-        public List<Pair<HivePartitionName, PartitionStatistics>> getPartitionStatistics()
+        public List<Pair<WithIdentity<HivePartitionName>, PartitionStatistics>> getPartitionStatistics()
         {
             return partitionStatistics;
         }
@@ -462,7 +460,7 @@ public class HiveMetastoreRecording
         }
 
         @JsonProperty
-        public List<Pair<HivePartitionName, Optional<Partition>>> getPartitionsByNames()
+        public List<Pair<WithIdentity<HivePartitionName>, Optional<Partition>>> getPartitionsByNames()
         {
             return partitionsByNames;
         }

@@ -38,6 +38,7 @@ import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.NullableValue;
+import io.trino.spi.security.ConnectorIdentity;
 import io.trino.spi.statistics.ColumnStatistics;
 import io.trino.spi.statistics.DoubleRange;
 import io.trino.spi.statistics.Estimate;
@@ -100,7 +101,7 @@ public class MetastoreHiveStatisticsProvider
     public MetastoreHiveStatisticsProvider(SemiTransactionalHiveMetastore metastore)
     {
         requireNonNull(metastore, "metastore is null");
-        this.statisticsProvider = (session, table, hivePartitions, columns) -> getPartitionsStatistics(metastore, table, columns, hivePartitions);
+        this.statisticsProvider = (session, table, hivePartitions, columns) -> getPartitionsStatistics(metastore, Optional.of(session.getIdentity()), table, columns, hivePartitions);
     }
 
     @VisibleForTesting
@@ -109,7 +110,7 @@ public class MetastoreHiveStatisticsProvider
         this.statisticsProvider = requireNonNull(statisticsProvider, "statisticsProvider is null");
     }
 
-    private static Map<String, PartitionStatistics> getPartitionsStatistics(SemiTransactionalHiveMetastore metastore, SchemaTableName table, Set<String> columns, List<HivePartition> hivePartitions)
+    private static Map<String, PartitionStatistics> getPartitionsStatistics(SemiTransactionalHiveMetastore metastore, Optional<ConnectorIdentity> identity, SchemaTableName table, Set<String> columns, List<HivePartition> hivePartitions)
     {
         if (hivePartitions.isEmpty()) {
             return ImmutableMap.of();
@@ -117,12 +118,12 @@ public class MetastoreHiveStatisticsProvider
         boolean unpartitioned = hivePartitions.stream().anyMatch(partition -> partition.getPartitionId().equals(UNPARTITIONED_ID));
         if (unpartitioned) {
             checkArgument(hivePartitions.size() == 1, "expected only one hive partition");
-            return ImmutableMap.of(UNPARTITIONED_ID, metastore.getTableStatistics(table.getSchemaName(), table.getTableName(), Optional.of(columns)));
+            return ImmutableMap.of(UNPARTITIONED_ID, metastore.getTableStatistics(table.getSchemaName(), table.getTableName(), Optional.of(columns), identity));
         }
         Set<String> partitionNames = hivePartitions.stream()
                 .map(HivePartition::getPartitionId)
                 .collect(toImmutableSet());
-        return metastore.getPartitionStatistics(table.getSchemaName(), table.getTableName(), columns, partitionNames);
+        return metastore.getPartitionStatistics(table.getSchemaName(), table.getTableName(), columns, partitionNames, identity);
     }
 
     @Override

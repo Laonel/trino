@@ -315,6 +315,7 @@ public class HiveSplitManager
             Map<String, Optional<Partition>> partitions = metastore.getPartitionsByNames(
                     tableName.getSchemaName(),
                     tableName.getTableName(),
+                    Optional.of(session.getIdentity()),
                     Lists.transform(partitionBatch, HivePartition::getPartitionId));
 
             if (partitionBatch.size() != partitions.size()) {

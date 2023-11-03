@@ -5,6 +5,7 @@ on:
     branches:
       - release-**
       - master
+      - asuda/*
   pull_request:
     paths-ignore:
       - 'docs/**'

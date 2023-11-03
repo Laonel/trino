@@ -20,6 +20,7 @@ import io.trino.plugin.hive.metastore.Table;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.security.ConnectorIdentity;
 
 import java.util.List;
 import java.util.Map;
@@ -67,15 +68,15 @@ public class HiveMetastoreBackedDeltaLakeMetastore
     }
 
     @Override
-    public Optional<Table> getRawMetastoreTable(String databaseName, String tableName)
+    public Optional<Table> getRawMetastoreTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
-        return delegate.getTable(databaseName, tableName);
+        return delegate.getTable(databaseName, tableName, identity);
     }
 
     @Override
-    public Optional<DeltaMetastoreTable> getTable(String databaseName, String tableName)
+    public Optional<DeltaMetastoreTable> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity)
     {
-        return getRawMetastoreTable(databaseName, tableName).map(table -> {
+        return getRawMetastoreTable(databaseName, tableName, identity).map(table -> {
             verifyDeltaLakeTable(table);
             return new DeltaMetastoreTable(
                     new SchemaTableName(databaseName, tableName),

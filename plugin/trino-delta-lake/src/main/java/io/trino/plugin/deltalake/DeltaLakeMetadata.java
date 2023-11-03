@@ -482,7 +482,7 @@ public class DeltaLakeMetadata
             // Pretend the table does not exist to produce better error message in case of table redirects to Hive
             return null;
         }
-        Optional<DeltaMetastoreTable> table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName());
+        Optional<DeltaMetastoreTable> table = metastore.getTable(tableName.getSchemaName(), tableName.getTableName(), Optional.of(session.getIdentity()));
         if (table.isEmpty()) {
             return null;
         }

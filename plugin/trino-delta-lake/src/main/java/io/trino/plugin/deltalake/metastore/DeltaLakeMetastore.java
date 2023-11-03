@@ -18,6 +18,7 @@ import io.trino.plugin.hive.metastore.PrincipalPrivileges;
 import io.trino.plugin.hive.metastore.Table;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.SchemaTableName;
+import io.trino.spi.security.ConnectorIdentity;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,9 +31,19 @@ public interface DeltaLakeMetastore
 
     List<String> getAllTables(String databaseName);
 
-    Optional<Table> getRawMetastoreTable(String databaseName, String tableName);
+    default Optional<Table> getRawMetastoreTable(String databaseName, String tableName)
+    {
+        return getRawMetastoreTable(databaseName, tableName, Optional.empty());
+    }
 
-    Optional<DeltaMetastoreTable> getTable(String databaseName, String tableName);
+    Optional<Table> getRawMetastoreTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity);
+
+    default Optional<DeltaMetastoreTable> getTable(String databaseName, String tableName)
+    {
+        return getTable(databaseName, tableName, Optional.empty());
+    }
+
+    Optional<DeltaMetastoreTable> getTable(String databaseName, String tableName, Optional<ConnectorIdentity> identity);
 
     void createDatabase(Database database);
 
